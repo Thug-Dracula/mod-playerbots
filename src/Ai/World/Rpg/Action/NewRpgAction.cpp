@@ -492,6 +492,15 @@ bool NewRpgDoQuestAction::DoCompletedQuest(NewRpgInfo::DoQuest& data)
         data.lastReachPOI = 0;
         data.pos = pos;
         data.objectiveIdx = -1;
+
+        // Drop the spline + lastPath that DoIncompleteQuest committed
+        // to the now-completed objective. Without this, MoveFarTo on
+        // the next tick hits the bot->isMoving() / lastPath-reuse
+        // early-exits at the top of MoveFarTo and rides the stale
+        // path instead of replanning toward the turn-in POI. (This
+        // is what `.playerbot bot self` masks by recreating the AI.)
+        bot->GetMotionMaster()->Clear();
+        AI_VALUE(LastMovement&, "last movement").clear();
     }
 
     if (data.pos == WorldPosition())
