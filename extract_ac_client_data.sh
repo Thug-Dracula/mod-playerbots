@@ -81,7 +81,7 @@ mmapsConfig:
     # 2000 resolution. Preserves the 1.60 yd world-unit step. The mmap
     # is shared with every creature, NPC patrol, escort, and quest mob;
     # tightening below stock breaks patrols that cross 1.5y ledges.
-    walkableClimb: 4
+    walkableClimb: 6
 
     # Minimum distance (in cell units) around walkable surfaces.
     # Helps prevent NPCs from clipping into walls and narrow gaps.
@@ -113,7 +113,7 @@ mmapsConfig:
     # 0.8 (vs the AC stock 1.8 and recast canonical 1.3) keeps polygon
     # edges close to real terrain. Targets "merged step into ramp"
     # simplification artifacts that produce corner-cuts and false NOPATH.
-    maxSimplificationError: 0.8
+    maxSimplificationError: 1.0
 
     # You can override any global parameter for a specific map by specifying its map ID.
     # Inside each map override, you can also override parameters per individual tile,
