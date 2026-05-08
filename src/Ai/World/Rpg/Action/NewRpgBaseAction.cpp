@@ -79,8 +79,11 @@ bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
     }
 
     // 10% lastPath reuse — if the cached path's endpoint is still
-    // close (within 10%) to the new dest AND we're not nearly there,
-    // keep the existing route. Matches cmangos ResolveMovePath.
+    // close (within 10%) to the new dest, trim the cached path to
+    // the bot's current position via makeShortCut and re-dispatch.
+    // Mirrors cmangos ResolveMovePath: per-tick re-dispatch of the
+    // (trimmed) last path keeps the bot on-route after interrupts
+    // (knockback, combat, manual move) without needing a full replan.
     {
         LastMovement& lastMove = AI_VALUE(LastMovement&, "last movement");
         if (!lastMove.lastPath.empty())
@@ -93,9 +96,42 @@ bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
                 float distFromBotToBack = bot->GetExactDist(&lastBack);
                 if (lastBack.distance(dest) < maxDistChange && distFromBotToBack > 10.0f)
                 {
-                    EmitDebugMove("MoveFar", "reuse",
-                        dest.GetPositionX(), dest.GetPositionY(), dest.GetPositionZ());
-                    return true;
+                    WorldPosition botPos(bot);
+                    lastMove.lastPath.makeShortCut(botPos, sPlayerbotAIConfig.reactDistance);
+
+                    // makeShortCut may clear the path if the bot drifted
+                    // too far off (>reactDistance from any waypoint). In
+                    // that case fall through to fresh planning.
+                    if (!lastMove.lastPath.empty())
+                    {
+                        std::vector<WorldPosition> const& pts = lastMove.lastPath.getPointPath();
+                        if (pts.size() >= 2)
+                        {
+                            Movement::PointsArray points;
+                            points.reserve(pts.size());
+                            for (auto const& wp : pts)
+                                points.emplace_back(wp.GetPositionX(), wp.GetPositionY(), wp.GetPositionZ());
+                            for (auto& pt : points)
+                                bot->UpdateAllowedPositionZ(pt.x, pt.y, pt.z);
+                            bot->GetMotionMaster()->Clear();
+                            bot->GetMotionMaster()->MoveSplinePath(&points, FORCED_MOVEMENT_RUN);
+
+                            G3D::Vector3 const& last = points.back();
+                            float totalChainDist = 0.f;
+                            for (size_t i = 1; i < points.size(); ++i)
+                                totalChainDist += (points[i] - points[i - 1]).length();
+                            float speed = std::max(bot->GetSpeed(MOVE_RUN), 0.1f);
+                            uint32 expectedMs = static_cast<uint32>((totalChainDist / speed) * IN_MILLISECONDS);
+                            uint32 cappedMs = std::min(expectedMs, (uint32)sPlayerbotAIConfig.maxWaitForMove);
+                            lastMove.Set(bot->GetMapId(), last.x, last.y, last.z,
+                                bot->GetOrientation(), cappedMs, MovementPriority::MOVEMENT_NORMAL);
+
+                            EmitDebugMove("MoveFar", "reuse",
+                                dest.GetPositionX(), dest.GetPositionY(), dest.GetPositionZ());
+                            return true;
+                        }
+                    }
+                    // Path was cleared or collapsed — fall through to fresh planning.
                 }
             }
         }
