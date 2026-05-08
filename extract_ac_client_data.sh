@@ -113,7 +113,7 @@ mmapsConfig:
     # 0.8 (vs the AC stock 1.8 and recast canonical 1.3) keeps polygon
     # edges close to real terrain. Targets "merged step into ramp"
     # simplification artifacts that produce corner-cuts and false NOPATH.
-    maxSimplificationError: 1.0
+    maxSimplificationError: 0.8
 
     # You can override any global parameter for a specific map by specifying its map ID.
     # Inside each map override, you can also override parameters per individual tile,
