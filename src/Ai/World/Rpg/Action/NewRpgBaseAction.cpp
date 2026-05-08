@@ -425,7 +425,7 @@ bool NewRpgBaseAction::MoveRandomNear(float moveStep, MovementPriority priority,
         float dy = y + distance * sin(angle);
         float dz = z;
 
-        PathResult path = GeneratePath(dx, dy, dz, RELAXED_PATH_ACCEPT_MASK);
+        PathResult path = GeneratePath(dx, dy, dz, RELAXED_PATH_ACCEPT_MASK, /*forceDestination=*/false);
 
         if (!path.reachable)
             continue;
