@@ -75,7 +75,7 @@ bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
             float remaining = bot->GetExactDist(lastMove.lastMoveToX, lastMove.lastMoveToY, lastMove.lastMoveToZ);
             if (remaining > 10.0f)
             {
-                EmitDebugMove("MoveFar", "spline-active",
+                EmitDebugMove("MoveFar", "spline-plan",
                               lastMove.lastMoveToX, lastMove.lastMoveToY, lastMove.lastMoveToZ);
                 return true;
             }
