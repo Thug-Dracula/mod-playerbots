@@ -164,9 +164,19 @@ bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
     //      waypoint spline at dest.
     bool tryNodes = (dis >= nodeFirstDis && sPlayerbotAIConfig.enableTravelNodes);
 
-    // If a node plan is already active, ride it.
+    // If a node plan is already active, ride it — but only if its
+    // destination still matches the requested dest. Otherwise the
+    // old plan (e.g. built toward a quest objective POI) would keep
+    // driving the bot after the caller switched targets (e.g. to a
+    // turn-in NPC). cmangos's ResolveMovePath dodges this by being
+    // stateless; we have a long-lived plan flag, so check explicitly.
     if (tryNodes && botAI->rpgInfo.HasActiveTravelPlan())
-        return UpdateTravelPlan();
+    {
+        if (botAI->rpgInfo.travelPlan.destination.distance(dest) > 10.0f)
+            botAI->rpgInfo.ClearTravel();
+        else
+            return UpdateTravelPlan();
+    }
 
     // PRIORITY: try the travel-node graph FIRST when the move is
     // long enough to need it.
