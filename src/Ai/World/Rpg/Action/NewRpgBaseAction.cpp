@@ -237,7 +237,7 @@ bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
 
             if (points.size() >= 2)
             {
-                // Cap dispatched path length at ~100y. MoveFarTo's
+                // Cap dispatched path length at ~70y. MoveFarTo's
                 // early-exit (top of function) lets the active spline
                 // run until bot is within 10y of its endpoint, then
                 // replans from the new position. Capping per-dispatch
@@ -245,7 +245,7 @@ bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
                 // points without the per-tick replan cost of fully
                 // unbounded chunks.
                 {
-                    constexpr float maxDispatchLength = 100.0f;
+                    constexpr float maxDispatchLength = 70.0f;
                     float accumulated = 0.f;
                     size_t cutoff = points.size();
                     for (size_t i = 1; i < points.size(); ++i)
