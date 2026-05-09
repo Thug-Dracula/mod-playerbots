@@ -2,7 +2,7 @@
 -- 3067 new links involving new nodes (mapped cmangos IDs to our IDs)
 -- skipped: 10521 existing-to-existing, 0 unmapped, 0 dup-with-ours
 
-INSERT INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `object`, `distance`, `swim_distance`, `extra_cost`, `calculated`, `max_creature_0`, `max_creature_1`, `max_creature_2`) VALUES
+INSERT IGNORE INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `object`, `distance`, `swim_distance`, `extra_cost`, `calculated`, `max_creature_0`, `max_creature_1`, `max_creature_2`) VALUES
 (3781, 3142, 1, 0, 478.0510, 0.0000, 0.0000, 1, 58, 0, 1),
 (3781, 2919, 1, 0, 388.8870, 0.0000, 0.0000, 1, 0, 60, 0),
 (3781, 3406, 1, 0, 689.2380, 0.0000, 0.0000, 1, 60, 0, 0),
@@ -503,7 +503,7 @@ INSERT INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `obje
 (3873, 3874, 1, 0, 37.8850, 0.0000, 0.0000, 1, 75, 0, 0),
 (2024, 3874, 3, 0, 5.6900, 0.0000, 0.1000, 1, 0, 0, 0),
 (3874, 3872, 1, 0, 38.5046, 0.0000, 0.0000, 1, 75, 0, 0);
-INSERT INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `object`, `distance`, `swim_distance`, `extra_cost`, `calculated`, `max_creature_0`, `max_creature_1`, `max_creature_2`) VALUES
+INSERT IGNORE INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `object`, `distance`, `swim_distance`, `extra_cost`, `calculated`, `max_creature_0`, `max_creature_1`, `max_creature_2`) VALUES
 (3874, 3873, 1, 0, 38.0271, 0.0000, 0.0000, 1, 75, 0, 0),
 (3874, 2024, 3, 0, 5.6900, 0.0000, 0.1000, 1, 0, 0, 0),
 (2001, 3789, 1, 0, 36.0523, 0.0000, 0.0000, 1, 0, 72, 0),
@@ -1004,7 +1004,7 @@ INSERT INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `obje
 (95, 4074, 1, 0, 95.1995, 0.0000, 0.0000, 1, 0, 0, 0),
 (839, 4074, 1, 0, 110.5850, 0.0000, 0.0000, 1, 78, 0, 0),
 (839, 4074, 1, 0, 122.1500, 0.0000, 0.0000, 1, 78, 0, 0);
-INSERT INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `object`, `distance`, `swim_distance`, `extra_cost`, `calculated`, `max_creature_0`, `max_creature_1`, `max_creature_2`) VALUES
+INSERT IGNORE INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `object`, `distance`, `swim_distance`, `extra_cost`, `calculated`, `max_creature_0`, `max_creature_1`, `max_creature_2`) VALUES
 (887, 4060, 1, 0, 73.7092, 0.0000, 0.0000, 1, 0, 0, 0),
 (3084, 3791, 1, 0, 306.1580, 0.0000, 0.0000, 1, 34, 0, 0),
 (3963, 606, 1, 0, 1305.9000, 0.0000, 0.0000, 1, 26, 65, 25),
@@ -1505,7 +1505,7 @@ INSERT INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `obje
 (4058, 4259, 1, 0, 119.9180, 0.0000, 0.0000, 1, 0, 5, 83),
 (4059, 3716, 1, 0, 59.9400, 0.0000, 0.0000, 1, 60, 75, 80),
 (4059, 3743, 1, 0, 155.4060, 0.0000, 0.0000, 1, 60, 75, 80);
-INSERT INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `object`, `distance`, `swim_distance`, `extra_cost`, `calculated`, `max_creature_0`, `max_creature_1`, `max_creature_2`) VALUES
+INSERT IGNORE INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `object`, `distance`, `swim_distance`, `extra_cost`, `calculated`, `max_creature_0`, `max_creature_1`, `max_creature_2`) VALUES
 (4059, 4323, 1, 0, 83.2041, 0.0000, 0.0000, 1, 60, 75, 80),
 (4060, 887, 1, 0, 73.5462, 0.0000, 0.0000, 1, 0, 0, 0),
 (4060, 885, 1, 0, 385.7960, 0.0000, 0.0000, 1, 83, 0, 0),
@@ -2006,7 +2006,7 @@ INSERT INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `obje
 (2527, 4046, 1, 0, 495.1070, 0.0000, 0.0000, 1, 75, 21, 18),
 (3119, 4071, 1, 0, 700.1810, 0.0000, 0.0000, 1, 14, 83, 0),
 (3119, 4180, 1, 0, 603.6170, 0.0000, 0.0000, 1, 23, 0, 0);
-INSERT INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `object`, `distance`, `swim_distance`, `extra_cost`, `calculated`, `max_creature_0`, `max_creature_1`, `max_creature_2`) VALUES
+INSERT IGNORE INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `object`, `distance`, `swim_distance`, `extra_cost`, `calculated`, `max_creature_0`, `max_creature_1`, `max_creature_2`) VALUES
 (3518, 4072, 1, 0, 2409.5600, 0.0000, 0.0000, 1, 75, 0, 83),
 (248, 4046, 1, 0, 480.1590, 0.0000, 0.0000, 1, 75, 15, 18),
 (1996, 4181, 3, 0, 17.9977, 0.0000, 0.1000, 1, 0, 0, 0),
@@ -2507,7 +2507,7 @@ INSERT INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `obje
 (232, 4075, 1, 0, 13.3127, 0.0000, 0.0000, 1, 78, 0, 0),
 (1765, 4079, 1, 0, 253.8430, 0.0000, 0.0000, 1, 0, 15, 0),
 (451, 4172, 1, 0, 531.9680, 0.0000, 0.0000, 1, 8, 75, 0);
-INSERT INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `object`, `distance`, `swim_distance`, `extra_cost`, `calculated`, `max_creature_0`, `max_creature_1`, `max_creature_2`) VALUES
+INSERT IGNORE INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `object`, `distance`, `swim_distance`, `extra_cost`, `calculated`, `max_creature_0`, `max_creature_1`, `max_creature_2`) VALUES
 (2340, 4155, 1, 0, 103.2110, 0.0000, 0.0000, 1, 0, 75, 0),
 (65, 4007, 1, 0, 71.9587, 0.0000, 0.0000, 1, 0, 0, 0),
 (3348, 4124, 1, 0, 132.8170, 0.0000, 0.0000, 1, 0, 65, 0),
@@ -3008,7 +3008,7 @@ INSERT INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `obje
 (4381, 447, 1, 0, 656.0880, 0.0000, 0.0000, 1, 57, 0, 0),
 (4382, 3333, 1, 0, 650.6650, 0.0000, 0.0000, 1, 17, 0, 0),
 (4382, 1663, 1, 0, 293.0220, 0.0000, 0.0000, 1, 17, 0, 0);
-INSERT INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `object`, `distance`, `swim_distance`, `extra_cost`, `calculated`, `max_creature_0`, `max_creature_1`, `max_creature_2`) VALUES
+INSERT IGNORE INTO `playerbots_travelnode_link` (`node_id`, `to_node_id`, `type`, `object`, `distance`, `swim_distance`, `extra_cost`, `calculated`, `max_creature_0`, `max_creature_1`, `max_creature_2`) VALUES
 (4383, 2513, 1, 0, 411.3130, 31.4360, 0.0000, 1, 21, 0, 0),
 (4383, 4373, 1, 0, 33.3823, 33.2823, 0.0000, 1, 21, 0, 0),
 (4383, 4391, 1, 0, 10.7250, 3.7305, 0.0000, 1, 21, 0, 0),
