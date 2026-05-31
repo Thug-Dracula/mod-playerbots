@@ -20,6 +20,7 @@
 #include "ModelIgnoreFlags.h"
 #include "PathGenerator.h"
 #include "Playerbots.h"
+#include "QuestSpawnIndex.h"
 #include "RaceMgr.h"
 #include "TransportMgr.h"
 #include "VMapFactory.h"
@@ -4412,6 +4413,7 @@ void TravelMgr::Init()
         PrepareDestinationCache();
     }
     sTravelNodeMap.Init();
+    sQuestSpawnIndex->Init();
 }
 
 TravelMgr::FlightMasterInfo const* TravelMgr::GetNearestFlightMasterInfo(Player* bot) const
