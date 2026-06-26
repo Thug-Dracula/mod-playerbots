@@ -741,19 +741,14 @@ std::vector<WorldPosition> WorldPosition::getPathStepFrom(WorldPosition startPos
     }
 
     PathGenerator path(pathUnit);
-    // Source is a temp Creature, so CreateFilter's bot block doesn't
-    // fire — apply the same bot cost biases here so generated paths
-    // match what bots prefer at runtime (STEEP/water are reachable
-    // but not preferred).
-    //
-    // Reference also applies setAreaCost(12, 5) + setAreaCost(13, 20)
-    // here. Not ported: reference and AC use different mmap generators
-    // and Detour area-id assignments diverge — raw IDs 12/13 are
-    // unlikely to match any polys on AC's navmesh and could no-op or
-    // bias something unintended. If we ever regenerate mmaps to match
-    // the reference dataset, revisit.
-    path.SetNavTerrainCost(NAV_GROUND_STEEP, 5.0f);
-    path.SetNavTerrainCost(NAV_WATER, 10.0f);
+    // Source is a temp Creature, so CreateFilter's bot block doesn't fire — apply the same
+    // bot filter here so generated routes match what bots can actually walk at runtime.
+    // CreateFilter hard-excludes NAV_GROUND_STEEP + lava for bots, so do the same: a route
+    // planned through steep terrain would be un-walkable at runtime and strand the bot.
+    // The mob-zone costs setAreaCost(12,5)/(13,20) are intentionally left out — those areas
+    // are only stamped by MarkNavArea (uncalled here), so they would no-op on AC's navmesh.
+    path.SetExcludeFlags(NAV_MAGMA | NAV_SLIME | NAV_GROUND_STEEP);
+    path.SetNavTerrainCost(NAV_WATER, 20.0f);
     auto result = getPathStepFrom(startPos, path);
 
     if (tempCreature)
@@ -886,10 +881,11 @@ std::vector<WorldPosition> WorldPosition::getPathFromPath(std::vector<WorldPosit
     }
 
     PathGenerator path(pathUnit);
-    // Same reason as getPathStepFrom: temp-Creature source doesn't trip
-    // CreateFilter's bot block, so apply the bot cost biases manually.
-    path.SetNavTerrainCost(NAV_GROUND_STEEP, 5.0f);
-    path.SetNavTerrainCost(NAV_WATER, 10.0f);
+    // Same reason as getPathStepFrom: temp-Creature source doesn't trip CreateFilter's bot
+    // block, so apply the same bot filter manually — hard-exclude steep + lava (matching the
+    // runtime mover) plus the water cost, so planned routes stay walkable.
+    path.SetExcludeFlags(NAV_MAGMA | NAV_SLIME | NAV_GROUND_STEEP);
+    path.SetNavTerrainCost(NAV_WATER, 20.0f);
 
     // Limit the pathfinding attempts
     for (uint32 i = 0; i < maxAttempt; i++)
