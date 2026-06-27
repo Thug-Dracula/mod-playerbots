@@ -1888,9 +1888,6 @@ void TravelNodeMap::Init()
 {
     InitTaxiGraph();
 
-    if (!sPlayerbotAIConfig.enableTravelNodes)
-        return;
-
     LoadNodeStore();
     calcMapOffset();
 

@@ -142,8 +142,7 @@ bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
     // Try the travel-node graph first for cross-map or > 50y moves;
     // fall back to chained mmap probe otherwise. BGs skip the graph.
     constexpr float TRAVELNODE_THRESHOLD = 50.0f;
-    bool tryNodes = sPlayerbotAIConfig.enableTravelNodes &&
-                    !bot->InBattleground() &&
+    bool tryNodes = !bot->InBattleground() &&
                     ((bot->GetMapId() != dest.GetMapId()) ||
                      (dis > TRAVELNODE_THRESHOLD));
 
