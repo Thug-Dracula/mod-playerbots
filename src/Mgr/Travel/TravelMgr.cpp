@@ -274,6 +274,65 @@ bool WorldPosition::isUnderWater()
                     : false;
 };
 
+// Lift an in-water position to just above the liquid surface. Route legs
+// that fail on the lake/sea floor (no navmesh underwater) often succeed
+// when planned from the surface instead.
+bool WorldPosition::setAtWaterSurface()
+{
+    if (!isInWater() && !isUnderWater())
+        return false;
+
+    Map* map = getMap();
+    if (!map)
+        return false;
+
+    float const waterLevel = map->GetWaterLevel(GetPositionX(), GetPositionY());
+    if (waterLevel > INVALID_HEIGHT)
+    {
+        setZ(waterLevel + 0.5f);
+        return true;
+    }
+    return false;
+}
+
+// Snap this position onto the nearest bot-walkable navmesh poly within
+// maxRange (XY) / maxHeight (Z), excluding steep/water/magma/slime, and
+// report whether one was found. Lets callers validate an approach point
+// before pathing to it — an offset landing inside a tree, rock or ledge
+// has no nearby walkable poly and is rejected instead of walked into.
+bool WorldPosition::ClosestCorrectPoint(float maxRange, float maxHeight)
+{
+    if (!std::isfinite(GetPositionX()) || !std::isfinite(GetPositionY()) || !std::isfinite(GetPositionZ()))
+        return false;
+
+    Map* map = getMap();
+    if (!map)
+        return false;
+
+    dtNavMeshQuery const* query = map->GetMapCollisionData().GetMMapData().GetNavMeshQuery();
+    if (!query)
+        return false;
+
+    dtQueryFilter filter;
+    filter.setIncludeFlags(NAV_GROUND);
+    filter.setExcludeFlags(NAV_GROUND_STEEP | NAV_WATER | NAV_MAGMA | NAV_SLIME);
+
+    // Detour stores coordinates as {Y, Z, X}.
+    float const point[VERTEX_SIZE]   = { GetPositionY(), GetPositionZ(), GetPositionX() };
+    float const extents[VERTEX_SIZE] = { maxRange, maxHeight, maxRange };
+    float closest[VERTEX_SIZE]       = { 0.0f, 0.0f, 0.0f };
+    dtPolyRef polyRef = INVALID_POLYREF;
+
+    if (!dtStatusSucceed(query->findNearestPoly(point, extents, &filter, &polyRef, closest)) ||
+        polyRef == INVALID_POLYREF)
+        return false;
+
+    setX(closest[2]);
+    setY(closest[0]);
+    setZ(closest[1]);
+    return true;
+}
+
 bool WorldPosition::IsValid()
 {
     return !(GetMapId() == MAPID_INVALID && GetPositionX() == 0 && GetPositionY() == 0 && GetPositionZ() == 0);

@@ -502,12 +502,27 @@ bool NewRpgBaseAction::MoveWorldObjectTo(ObjectGuid guid, float distance)
         y = object->GetPositionY();
         z = object->GetPositionZ();
     }
+
+    // Validate a nearby approach point against the navmesh: snap it onto
+    // the closest walkable poly and reject it when the snap drifts too
+    // far vertically (the offset landed inside a tree, rock or ledge —
+    // walking there would wedge the bot against the model). Far points
+    // are skipped since their mmap tiles may not be loaded yet; they get
+    // validated on re-approach. Failing returns false so the caller
+    // retries later with a fresh random offset.
+    WorldPosition movePos(object->GetMapId(), x, y, z);
+    if (movePos.distance(WorldPosition(bot)) < sPlayerbotAIConfig.sightDistance)
+    {
+        if (!movePos.ClosestCorrectPoint(5.0f, 5.0f) || std::fabs(movePos.GetPositionZ() - z) > 10.0f)
+            return false;
+    }
+
     // Delegate to MoveFarTo so every approach gets the chained mmap
     // probe + spellDistance shortcut + travel-node fallback instead
     // of a single direct MoveTo. The debug-move trace then labels
     // the actual mechanism (spline / mmap / nodetravel) rather than
     // a generic "MoveWorldObjectTo:spline".
-    return MoveFarTo(WorldPosition(object->GetMapId(), x, y, z));
+    return MoveFarTo(movePos);
 }
 
 bool NewRpgBaseAction::MoveRandomNear(float moveStep, MovementPriority priority, WorldObject*)

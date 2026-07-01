@@ -631,7 +631,9 @@ public:
 
     // Get all nodes
     std::vector<TravelNode*> getNodes() { return nodes; }
-    std::vector<TravelNode*> getNodes(WorldPosition pos, float range = -1);
+    // transportEntry: when set, only nodes belonging to that transport
+    // are returned (route starts for a bot standing on a boat/zeppelin).
+    std::vector<TravelNode*> getNodes(WorldPosition pos, float range = -1, uint32 transportEntry = 0);
 
     // Find nearest node.
     TravelNode* getNode(TravelNode* sameNode)

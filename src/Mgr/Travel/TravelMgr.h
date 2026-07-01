@@ -138,6 +138,8 @@ public:
     bool isOverworld();
     bool isInWater();
     bool isUnderWater();
+    bool setAtWaterSurface();
+    bool ClosestCorrectPoint(float maxRange, float maxHeight);
     bool IsValid();
 
     WorldPosition relPoint(WorldPosition* center);

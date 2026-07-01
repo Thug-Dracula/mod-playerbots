@@ -104,6 +104,14 @@ void TravelNodePath::calculateCost(bool distanceOnly)
 // The cost to travel this path.
 float TravelNodePath::getCost(Player* bot, uint32 cGold)
 {
+    // The walk executor treats teleport-spell and flying-mount legs as
+    // terminal (it aborts the plan on reaching them) — price them
+    // impassable so route selection never picks a route that dead-ends
+    // there.
+    if (getPathType() == TravelNodePathType::teleportSpell ||
+        getPathType() == TravelNodePathType::flyingMount)
+        return -1.0f;
+
     float modifier = 1.0f;  // Global modifier
     float timeCost = 0.1f;
     float runDistance = distance - swimDistance;
@@ -161,18 +169,8 @@ float TravelNodePath::getCost(Player* bot, uint32 cGold)
             if (factionAnnoyance > 0)
                 modifier += 0.3 * factionAnnoyance;  // For each level the whole path takes 10% longer.
         }
-        if (getPathType() == TravelNodePathType::flyingMount)
-        {
-            if (!bot->IsAlive() || bot->GetLevel() < 70 || !bot->CanFly())
-                return -1.0f;
-
-            float flySpeed = bot->GetSpeed(MOVE_FLIGHT);
-            if (flySpeed < 1.0f)
-                flySpeed = 20.0f;  // 280% base flying speed fallback
-            return (distance / flySpeed) * modifier;
-        }
     }
-    else if (getPathType() == TravelNodePathType::flightPath || getPathType() == TravelNodePathType::flyingMount)
+    else if (getPathType() == TravelNodePathType::flightPath)
         return -1.0f;
 
     if (getPathType() != TravelNodePathType::walk)
@@ -1049,15 +1047,22 @@ void TravelNodeMap::fullLinkNode(TravelNode* startNode, Unit* bot)
     startNode->setLinked(true);
 }
 
-std::vector<TravelNode*> TravelNodeMap::getNodes(WorldPosition pos, float range)
+std::vector<TravelNode*> TravelNodeMap::getNodes(WorldPosition pos, float range, uint32 transportEntry)
 {
     std::vector<TravelNode*> retVec;
 
     for (auto& node : nodes)
     {
         if (node->GetMapId() == pos.GetMapId())
-            if (range == -1 || node->getDistance(pos) <= range)
-                retVec.push_back(node);
+        {
+            if (range != -1 && node->getDistance(pos) > range)
+                continue;
+
+            if (transportEntry && node->getTransportId() != transportEntry)
+                continue;
+
+            retVec.push_back(node);
+        }
     }
 
     std::sort(retVec.begin(), retVec.end(),
@@ -1327,7 +1332,12 @@ bool TravelNodeMap::GetFullPath(TravelPlan& plan,
     // tail collapses to one straight node->destination segment that the
     // walk executor then rejects — the plan dies within arrival range
     // and gets re-derived forever.
-    std::vector<TravelNode*> startNodes = getNodes(botPos);
+    // A bot standing on a transport can only start its route from nodes
+    // belonging to that transport — shore nodes are unreachable from a
+    // moving deck.
+    uint32 const transportEntry = (bot && bot->GetTransport()) ? bot->GetTransport()->GetEntry() : 0;
+
+    std::vector<TravelNode*> startNodes = getNodes(botPos, -1, transportEntry);
     std::vector<TravelNode*> endNodes = getNodes(destination);
     if (startNodes.empty() || endNodes.empty())
         return false;
@@ -1366,6 +1376,16 @@ bool TravelNodeMap::GetFullPath(TravelPlan& plan,
             if (route.isEmpty())
                 continue;
 
+            // On a transport the begin leg can't be walk-validated (no
+            // walkable navmesh under the bot); accept the route as-is
+            // and let the transport leg carry the bot to solid ground,
+            // where the plan re-derives with proper legs.
+            if (transportEntry)
+            {
+                plan.steps = route.BuildPath({botPos, startNodePosition}, {}, bot);
+                return !plan.steps.empty();
+            }
+
             if (endPath.empty())
             {
                 if (botPos.GetMapId() == destination.GetMapId())
@@ -1375,7 +1395,22 @@ bool TravelNodeMap::GetFullPath(TravelPlan& plan,
                     // actually arrives; otherwise this end node is
                     // unusable — move on to the next one.
                     endPath = endNodePosition.getPathTo(destination, bot);
-                    if (!destination.isPathTo(endPath, 1.0f))
+                    bool hasEndPath = destination.isPathTo(endPath, 1.0f);
+
+                    if (!hasEndPath)
+                    {
+                        // Underwater legs often fail on the sea floor
+                        // but succeed from the surface — retry there.
+                        WorldPosition surfaceNode = endNodePosition;
+                        WorldPosition surfaceEnd = destination;
+                        if (surfaceNode.setAtWaterSurface() || surfaceEnd.setAtWaterSurface())
+                        {
+                            endPath = surfaceNode.getPathTo(surfaceEnd, bot);
+                            hasEndPath = surfaceEnd.isPathTo(endPath, 1.0f);
+                        }
+                    }
+
+                    if (!hasEndPath)
                     {
                         endPath.clear();
                         break;
@@ -1400,6 +1435,17 @@ bool TravelNodeMap::GetFullPath(TravelPlan& plan,
             {
                 newStartPath = botPos.getPathTo(startNodePosition, bot);
                 hasPath = startNodePosition.isPathTo(newStartPath, maxStartDistance);
+            }
+            if (!hasPath)
+            {
+                // Underwater begin legs: retry from the surface.
+                WorldPosition surfaceStart = botPos;
+                WorldPosition surfaceNode = startNodePosition;
+                if (surfaceStart.setAtWaterSurface() || surfaceNode.setAtWaterSurface())
+                {
+                    newStartPath = surfaceStart.getPathTo(surfaceNode, bot);
+                    hasPath = surfaceNode.isPathTo(newStartPath, maxStartDistance);
+                }
             }
             if (!hasPath)
             {
