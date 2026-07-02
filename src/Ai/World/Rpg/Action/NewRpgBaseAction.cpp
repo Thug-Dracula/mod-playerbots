@@ -176,7 +176,6 @@ bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
         }
     }
 
-    float disToDest = bot->GetDistance(dest);
     float dis = bot->GetExactDist(dest);
 
     // Decision tree:
