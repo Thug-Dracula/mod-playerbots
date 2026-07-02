@@ -56,6 +56,29 @@ bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
         botAI->rpgInfo.SetMoveFarTo(dest);
     }
 
+    // Let previously committed movement finish before recomputing.
+    // If the bot is still actively walking toward its last committed
+    // point on the same map, just let the current spline finish.
+    // Prevents oscillation when a re-resolve produces a slightly
+    // different partial-path endpoint mid-walk. This runs BEFORE the
+    // wait-gate below and returns TRUE: the caller (e.g. the do-quest
+    // action) must report success while the bot is genuinely en route,
+    // or the engine falls through to lower-relevance actions — grind
+    // picked a target and cancelled the travel spline every tick.
+    {
+        LastMovement& lastMove = AI_VALUE(LastMovement&, "last movement");
+        if (bot->isMoving() && lastMove.lastMoveToMapId == bot->GetMapId())
+        {
+            float remaining = bot->GetExactDist(lastMove.lastMoveToX, lastMove.lastMoveToY, lastMove.lastMoveToZ);
+            if (remaining > 10.0f)
+            {
+                EmitDebugMove("MoveFar", "spline-plan",
+                              lastMove.lastMoveToX, lastMove.lastMoveToY, lastMove.lastMoveToZ);
+                return true;
+            }
+        }
+    }
+
     // performance optimization
     if (IsWaitingForLastMove(MovementPriority::MOVEMENT_NORMAL))
         return false;
@@ -75,25 +98,6 @@ bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
             }
             bot->StopMoving();
             return false;
-        }
-    }
-
-    // Let previously committed movement finish before recomputing.
-    // If the bot is still actively walking toward its last committed
-    // point on the same map, just let the current spline finish.
-    // Prevents oscillation when a re-resolve produces a slightly
-    // different partial-path endpoint mid-walk.
-    {
-        LastMovement& lastMove = AI_VALUE(LastMovement&, "last movement");
-        if (bot->isMoving() && lastMove.lastMoveToMapId == bot->GetMapId())
-        {
-            float remaining = bot->GetExactDist(lastMove.lastMoveToX, lastMove.lastMoveToY, lastMove.lastMoveToZ);
-            if (remaining > 10.0f)
-            {
-                EmitDebugMove("MoveFar", "spline-plan",
-                              lastMove.lastMoveToX, lastMove.lastMoveToY, lastMove.lastMoveToZ);
-                return true;
-            }
         }
     }
 

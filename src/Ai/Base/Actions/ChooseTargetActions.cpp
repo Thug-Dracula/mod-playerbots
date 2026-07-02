@@ -132,6 +132,31 @@ bool AttackAnythingAction::isUseful()
         return false;
     }
 
+    // Quest focus: while traveling for a quest — to the POI or back to
+    // the turn-in — grinding is not useful at all. A relevance damp
+    // cannot enforce this (the engine executes any popped action whose
+    // multiplied relevance stays above zero), so gate it here. The one
+    // exception is a target that would aggro us anyway: hostile, in
+    // front, inside 1.5x its aggro range and within our level band —
+    // fighting that on our own terms beats being jumped mid-travel.
+    if (botAI->rpgInfo.GetStatus() == RPG_DO_QUEST)
+    {
+        auto* data = std::get_if<NewRpgInfo::DoQuest>(&botAI->rpgInfo.data);
+        bool const headingToTurnIn = data && data->questId &&
+            bot->GetQuestStatus(data->questId) == QUEST_STATUS_COMPLETE;
+        bool const travelingToPOI = data && !data->lastReachPOI;
+        if (headingToTurnIn || travelingToPOI)
+        {
+            Creature* creature = target->ToCreature();
+            bool const wouldAggroAnyway = creature && creature->IsHostileTo(bot) &&
+                bot->GetDistance(creature) < creature->GetAggroRange(bot) * 1.5f &&
+                static_cast<int32>(creature->GetLevel()) <= static_cast<int32>(bot->GetLevel()) + 3 &&
+                creature->CanStartAttack(bot);
+            if (!wouldAggroAnyway)
+                return false;
+        }
+    }
+
     return true;
 }
 

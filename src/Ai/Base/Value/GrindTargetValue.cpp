@@ -106,18 +106,36 @@ Unit* GrindTargetValue::FindTargetForGrinding(uint32 assistCount)
         }
 
         bool inactiveGrindStatus = botAI->rpgInfo.GetStatus() != RPG_WANDER_RANDOM && botAI->rpgInfo.GetStatus() != RPG_IDLE;
+        bool const doingQuest = botAI->rpgInfo.GetStatus() == RPG_DO_QUEST;
 
         float aggroRange = 30.0f;
         if (unit->ToCreature())
             aggroRange = std::min(30.0f, unit->ToCreature()->GetAggroRange(bot) + 10.0f);
         bool outOfAggro = unit->ToCreature() && bot->GetDistance(unit) > aggroRange;
-        if (inactiveGrindStatus && outOfAggro)
+
+        bool questMob = true;
+        if (inactiveGrindStatus)
         {
             if (needForQuestMap.find(unit->GetEntry()) == needForQuestMap.end())
                 needForQuestMap[unit->GetEntry()] = needForQuest(unit);
+            questMob = needForQuestMap[unit->GetEntry()];
 
-            if (!needForQuestMap[unit->GetEntry()])
-                continue;
+            if (!questMob)
+            {
+                // While working a quest, skip mobs the quest does not
+                // need almost always — at ANY distance, not just beyond
+                // aggro range. Otherwise each kill relocates the bot
+                // into the next camp mob's radius and the chain never
+                // ends. The rare pass-through keeps a camp clearable
+                // when the bot is boxed in.
+                if (doingQuest)
+                {
+                    if (urand(0, 99) < 99)
+                        continue;
+                }
+                else if (outOfAggro)
+                    continue;
+            }
         }
 
         if (group)
@@ -140,6 +158,10 @@ Unit* GrindTargetValue::FindTargetForGrinding(uint32 assistCount)
         else
         {
             float newdistance = bot->GetDistance(unit);
+            // Prefer quest mobs while questing: a non-quest mob has to
+            // be more than 20y closer to win the pick.
+            if (doingQuest && !questMob)
+                newdistance += 20.0f;
             if (!result || (newdistance < distance))
             {
                 distance = newdistance;
