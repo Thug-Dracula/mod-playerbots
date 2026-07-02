@@ -100,8 +100,12 @@ void MovementAction::EmitDebugMove(char const* method, char const* generator, fl
                         t << "turn-in:" << data->quest->GetTitle() << "(" << data->questId << ")";
                         targetName = t.str();
                     }
-                    else
+                    else if (bot->getQuestStatusMap().count(data->questId))
                     {
+                        // Guarded lookup: RewardQuest erases the status-map
+                        // entry (and a drop leaves NONE) while rpgInfo can
+                        // still hold the stale DoQuest state until the RPG
+                        // action next runs — .at() here would throw.
                         Quest const* q = data->quest;
                         QuestStatusData const& qs = bot->getQuestStatusMap().at(data->questId);
                         std::string goal;
@@ -397,6 +401,18 @@ bool MovementAction::MoveTo(uint32 mapId, float x, float y, float z, bool /*idle
         float distance = bot->GetExactDist(x, y, z);
         if (distance > 0.01f)
         {
+            // Reachability gate: on NOPATH the engine's MovePoint falls
+            // back to a straight 2-point spline, gliding the bot through
+            // geometry to an unreachable target. Probe first and refuse
+            // the move instead. Flying/swimming dispatches keep
+            // generatePath false and are unaffected.
+            if (generatePath)
+            {
+                PathResult probe = GeneratePath(x, y, z);
+                if (!probe.reachable)
+                    return false;
+            }
+
             if (bot->IsSitState())
                 bot->SetStandState(UNIT_STAND_STATE_STAND);
 
@@ -3524,22 +3540,31 @@ bool MovementAction::ExecuteTravelPlan(TravelPlan& state)
             const PathNodePoint& src = state.steps[state.stepIdx];
             const PathNodePoint& dst = state.steps[state.stepIdx + 1];
 
-            // Already on destination map?
-            if (bot->GetMapId() == dst.point.GetMapId())
+            // Crossed: on the destination map AND near the exit point.
+            // Map id alone misreads same-map portals (entry and exit on
+            // one map, e.g. Rut'theran<->Darnassus) as already-crossed
+            // before the bot ever takes them.
+            if (bot->GetMapId() == dst.point.GetMapId() &&
+                bot->GetExactDist(dst.point.GetPositionX(), dst.point.GetPositionY(),
+                                  dst.point.GetPositionZ()) < 40.0f)
             {
                 state.stepIdx += 2;
                 return true;
             }
+
             // Walk to portal source
             float dist = bot->GetExactDist(src.point.GetPositionX(), src.point.GetPositionY(), src.point.GetPositionZ());
             if (dist > INTERACTION_DISTANCE)
                 return MoveTo(src.point.GetMapId(), src.point.GetPositionX(), src.point.GetPositionY(), src.point.GetPositionZ());
 
-            // At portal but didn't cross — natural collision missed.
-            // Abort the plan; stuck-recovery in MoveFarTo will decide
-            // whether to retry or teleport the bot.
-            state.Reset();
-            return false;
+            // Take the portal. Area triggers only fire from client
+            // CMSG_AREATRIGGER packets, which socketless bots never send,
+            // so cross by teleporting to the exit; the arrival check above
+            // advances the step next tick (and retries if the teleport
+            // was suppressed, e.g. mid-teleport state).
+            botAI->TeleportTo(WorldLocation(dst.point.GetMapId(), dst.point.GetPositionX(),
+                                            dst.point.GetPositionY(), dst.point.GetPositionZ()));
+            return true;
         }
 
         case PathNodeType::NODE_TRANSPORT:
@@ -3552,16 +3577,27 @@ bool MovementAction::ExecuteTravelPlan(TravelPlan& state)
 
             const PathNodePoint& board = state.steps[state.stepIdx];
             const PathNodePoint& arrive = state.steps[state.stepIdx + 1];
-            // Arrived at destination?
-            if (bot->GetMapId() == arrive.point.GetMapId() && !bot->GetTransport())
+
+            // Arrival needs proximity to the arrival dock, not just the
+            // map id: same-map transports (UC<->Grom'gol, the Kalimdor
+            // ferries) would otherwise read as "arrived" while the bot
+            // still stands at the departure dock, and cross-map boats
+            // switch the passenger's map mid-voyage — dropping the bot
+            // into open water if it disembarks on the map check alone.
+            float const distToArrive = (bot->GetMapId() == arrive.point.GetMapId())
+                ? bot->GetExactDist(arrive.point.GetPositionX(), arrive.point.GetPositionY(),
+                                    arrive.point.GetPositionZ())
+                : FLT_MAX;
+
+            if (!bot->GetTransport() && distToArrive < 60.0f)
             {
                 state.stepIdx += 2;
                 return true;
             }
-            // On transport — wait
+            // On transport — ride until the arrival dock is close.
             if (bot->GetTransport())
             {
-                if (bot->GetMapId() == arrive.point.GetMapId())
+                if (distToArrive < 60.0f)
                 {
                     bot->GetTransport()->RemovePassenger(bot);
                     bot->StopMovingOnCurrentPos();

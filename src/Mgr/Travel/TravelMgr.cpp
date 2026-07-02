@@ -778,6 +778,14 @@ std::vector<WorldPosition> WorldPosition::getPathStepFrom(WorldPosition startPos
     }
 
     PathGenerator path(pathUnit);
+    // A temp Creature source gets the CREATURE nav filter (steep terrain
+    // included), not the bot one — but every route planned here is walked
+    // by a bot. Re-apply the bot filter so planned paths stay walkable.
+    if (tempCreature)
+    {
+        path.SetExcludeFlags(NAV_MAGMA | NAV_SLIME | NAV_GROUND_STEEP);
+        path.SetNavTerrainCost(NAV_WATER, 20.0f);
+    }
     auto result = getPathStepFrom(startPos, path);
 
     if (tempCreature)
@@ -910,6 +918,14 @@ std::vector<WorldPosition> WorldPosition::getPathFromPath(std::vector<WorldPosit
     }
 
     PathGenerator path(pathUnit);
+    // Same as getPathStepFrom: a temp Creature source would plan with the
+    // creature filter (steep included) — re-apply the bot filter, since
+    // bots are the only consumers of these routes.
+    if (tempCreature)
+    {
+        path.SetExcludeFlags(NAV_MAGMA | NAV_SLIME | NAV_GROUND_STEEP);
+        path.SetNavTerrainCost(NAV_WATER, 20.0f);
+    }
 
     // Limit the pathfinding attempts
     for (uint32 i = 0; i < maxAttempt; i++)

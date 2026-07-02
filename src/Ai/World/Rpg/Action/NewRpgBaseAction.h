@@ -76,6 +76,13 @@ protected:
     bool RandomChangeStatus(std::vector<NewRpgStatus> candidateStatus);
     bool CheckRpgStatusAvailable(NewRpgStatus status);
 
+    // Time without real progress toward dest before MoveFarTo falls
+    // back to teleport recovery. Short enough that a bot oscillating
+    // around an unreachable destination (non-progressing partial
+    // paths, or a plan that keeps aborting) doesn't spin for minutes;
+    // long enough that a genuine long walk never triggers it.
+    const uint32 stuckTime = 90 * 1000;
+
 private:
     void StartTravelPlan(WorldPosition dest);
     bool UpdateTravelPlan();

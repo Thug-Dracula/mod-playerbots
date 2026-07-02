@@ -50,6 +50,12 @@ bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
     if (dest == WorldPosition())
         return false;
 
+    if (dest != botAI->rpgInfo.moveFarPos)
+    {
+        // clear stuck information if it's a new dest
+        botAI->rpgInfo.SetMoveFarTo(dest);
+    }
+
     // performance optimization
     if (IsWaitingForLastMove(MovementPriority::MOVEMENT_NORMAL))
         return false;
@@ -91,6 +97,33 @@ bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
         }
     }
 
+    // Stuck check. Require a meaningful improvement (5yd) to reset the
+    // counter — a bot oscillating around an obstacle keeps "making
+    // progress" under a smaller threshold and never recovers. After
+    // stuckTime with no real progress (covers non-progressing partial
+    // paths, plans that keep aborting and re-deriving, and unreachable
+    // destinations), fall back to teleporting so the bot gets on with
+    // its RPG objective instead of looping indefinitely.
+    float const disToDest = bot->GetDistance(dest);
+    if (disToDest + 5.0f < botAI->rpgInfo.nearestMoveFarDis)
+    {
+        botAI->rpgInfo.nearestMoveFarDis = disToDest;
+        botAI->rpgInfo.stuckTs = getMSTime();
+        botAI->rpgInfo.stuckAttempts = 0;
+    }
+    else if (++botAI->rpgInfo.stuckAttempts >= 5 && GetMSTimeDiffToNow(botAI->rpgInfo.stuckTs) >= stuckTime)
+    {
+        botAI->rpgInfo.stuckTs = getMSTime();
+        botAI->rpgInfo.stuckAttempts = 0;
+        botAI->rpgInfo.ClearTravel();
+        LOG_DEBUG("playerbots",
+            "[New RPG] Teleport {} from ({},{},{},{}) to ({},{},{},{}) as it stuck when moving far",
+            bot->GetName(), bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ(), bot->GetMapId(),
+            dest.GetPositionX(), dest.GetPositionY(), dest.GetPositionZ(), dest.GetMapId());
+        bot->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_TELEPORTED | AURA_INTERRUPT_FLAG_CHANGE_MAP);
+        return bot->TeleportTo(dest);
+    }
+
     // 10% lastPath reuse — if the cached path's endpoint is still
     // close (within 10%) to the new dest, trim the cached path to
     // the bot's current position via makeShortCut and re-dispatch.
@@ -110,17 +143,22 @@ bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
                 if (lastBack.distance(dest) < maxDistChange && distFromBotToBack > 10.0f)
                 {
                     WorldPosition botPos(bot);
-                    lastMove.lastPath.makeShortCut(botPos, sPlayerbotAIConfig.reactDistance, bot);
-
-                    // makeShortCut may clear the path if the bot drifted
-                    // too far off (>reactDistance from any waypoint). In
-                    // that case fall through to fresh planning.
-                    if (lastMove.lastPath.empty())
+                    // makeShortCut trims the path to the bot's position.
+                    // On failure it either clears the path (drifted
+                    // >reactDistance from every waypoint) or returns
+                    // false with the path UNMODIFIED (can't re-join the
+                    // nearest waypoint) — dispatching the untrimmed path
+                    // would spline the bot back to its original start,
+                    // so both failure modes fall through to fresh
+                    // planning.
+                    bool const trimmed =
+                        lastMove.lastPath.makeShortCut(botPos, sPlayerbotAIConfig.reactDistance, bot);
+                    if (!trimmed)
                     {
                         EmitDebugMove("MoveFar", "reuse-trim-failed",
                                       dest.GetPositionX(), dest.GetPositionY(), dest.GetPositionZ());
                     }
-                    if (!lastMove.lastPath.empty())
+                    else if (!lastMove.lastPath.empty())
                     {
                         std::vector<WorldPosition> const& pts = lastMove.lastPath.getPointPath();
                         if (pts.size() >= 2)
@@ -132,7 +170,7 @@ bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
                             return DispatchPathPoints(dest, points, "reuse");
                         }
                     }
-                    // Path was cleared or collapsed — fall through to fresh planning.
+                    // Trim failed or path collapsed — fall through to fresh planning.
                 }
             }
         }
@@ -216,8 +254,11 @@ bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
                 if (cachedToDest <= probeToDest)
                 {
                     WorldPosition botPosNow(bot);
-                    lastMove.lastPath.makeShortCut(botPosNow, sPlayerbotAIConfig.reactDistance, bot);
-                    if (!lastMove.lastPath.empty())
+                    // Same contract as the reuse block: a false return
+                    // leaves the path untrimmed — dispatching it would
+                    // backtrack the bot to the route's original start.
+                    if (lastMove.lastPath.makeShortCut(botPosNow, sPlayerbotAIConfig.reactDistance, bot) &&
+                        !lastMove.lastPath.empty())
                     {
                         std::vector<WorldPosition> const& pts = lastMove.lastPath.getPointPath();
                         if (pts.size() >= 2)

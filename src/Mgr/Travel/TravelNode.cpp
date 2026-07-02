@@ -1376,13 +1376,16 @@ bool TravelNodeMap::GetFullPath(TravelPlan& plan,
             if (route.isEmpty())
                 continue;
 
-            // On a transport the begin leg can't be walk-validated (no
-            // walkable navmesh under the bot); accept the route as-is
-            // and let the transport leg carry the bot to solid ground,
-            // where the plan re-derives with proper legs.
+            // On a transport there is no walkable navmesh under the bot,
+            // so emit no begin leg at all — the walk executor would
+            // live-validate it from the moving deck and abort the plan
+            // every tick. The route starts at the transport node the bot
+            // is riding, so the first plan step is the transport pair
+            // itself; its wait-until-arrival handling carries the bot to
+            // solid ground, where later legs walk normally.
             if (transportEntry)
             {
-                plan.steps = route.BuildPath({botPos, startNodePosition}, {}, bot);
+                plan.steps = route.BuildPath({}, {}, nullptr);
                 return !plan.steps.empty();
             }
 
@@ -1453,7 +1456,13 @@ bool TravelNodeMap::GetFullPath(TravelPlan& plan,
                 continue;
             }
 
-            plan.steps = route.BuildPath(newStartPath, endPath, bot);
+            // BuildPath gets no unit on purpose: with one it rebuilds
+            // missing/incomplete link paths at runtime, mutating the
+            // shared node graph (paths/links map inserts) under only the
+            // shared_lock held here — a data race across map-update
+            // threads. Without a unit an incomplete link falls back to a
+            // plain move-to-node point, which the walk executor handles.
+            plan.steps = route.BuildPath(newStartPath, endPath, nullptr);
             return !plan.steps.empty();
         }
     }

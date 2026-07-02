@@ -121,8 +121,19 @@ bool NewRpgStatusUpdateAction::Execute(Event /*event*/)
             }
             break;
         }
-        // RPG_TRAVEL_FLIGHT arrival is handled inside NewRpgTravelFlightAction
-        // so the flight action owns both take-off and landing transitions.
+        case RPG_TRAVEL_FLIGHT:
+        {
+            // Arrival is handled inside NewRpgTravelFlightAction (it owns
+            // take-off and landing); this timeout is the backstop so a
+            // bot that never boards or never lands cleanly can't stay
+            // wedged in this status. Never fires mid-flight.
+            if (!bot->IsInFlight() && info.HasStatusPersisted(statusTravelFlightDuration))
+            {
+                info.ChangeToIdle();
+                return true;
+            }
+            break;
+        }
         case RPG_REST:
         {
             // REST -> IDLE
@@ -274,14 +285,26 @@ bool NewRpgDoQuestAction::DoIncompleteQuest(NewRpgInfo::DoQuest& data)
         int32 currentObjective = data.objectiveIdx;
         // check if the objective has completed
         Quest const* quest = sObjectMgr->GetQuestTemplate(questId);
-        const QuestStatusData& q_status = bot->getQuestStatusMap().at(questId);
+        auto statusItr = bot->getQuestStatusMap().find(questId);
+        if (statusItr == bot->getQuestStatusMap().end())
+        {
+            // Quest vanished from the log (rewarded/dropped) while this
+            // state was still active — stop pursuing it.
+            botAI->rpgInfo.ChangeToIdle();
+            return true;
+        }
+        const QuestStatusData& q_status = statusItr->second;
         bool completed = true;
-        if (currentObjective < QUEST_OBJECTIVES_COUNT)
+        // objectiveIdx is -1 while heading to turn-in; if the quest fell out
+        // of COMPLETE again we have no valid objective — treat as completed
+        // so a fresh objective is picked below.
+        if (currentObjective >= 0 && currentObjective < QUEST_OBJECTIVES_COUNT)
         {
             if (q_status.CreatureOrGOCount[currentObjective] < quest->RequiredNpcOrGoCount[currentObjective])
                 completed = false;
         }
-        else if (currentObjective < QUEST_OBJECTIVES_COUNT + QUEST_ITEM_OBJECTIVES_COUNT)
+        else if (currentObjective >= QUEST_OBJECTIVES_COUNT &&
+                 currentObjective < QUEST_OBJECTIVES_COUNT + QUEST_ITEM_OBJECTIVES_COUNT)
         {
             if (q_status.ItemCount[currentObjective - QUEST_OBJECTIVES_COUNT] <
                 quest->RequiredItemCount[currentObjective - QUEST_OBJECTIVES_COUNT])
@@ -545,17 +568,13 @@ bool NewRpgTravelFlightAction::Execute(Event /*event*/)
 
     auto& data = *dataPtr;
 
-    // Arrival: we had boarded a flight (data.inFlight) and we're no longer in
-    // it → we just landed. Special-case Rut'theran: walk to the portal GO so
-    // it teleports the bot into Darnassus, flipping the zone to AREA_DARNASSUS
-    // so this branch falls through to ChangeToIdle on the next tick.
+    // Arrival: we had boarded a flight (data.inFlight) and we're no longer
+    // in it → we just landed. No special-casing of the landing zone: the
+    // next RPG destination routes through the travel-node graph, whose
+    // portal legs (including same-map ones like Rut'theran→Darnassus) the
+    // walk executor crosses itself.
     if (data.inFlight && !bot->IsInFlight())
     {
-        if (bot->GetZoneId() == AREA_TELDRASSIL)
-        {
-            static WorldPosition const rutTheranPortalEntrance(1, 8799.41f, 969.787f, 26.2409f, 0.0f);
-            return MoveFarTo(rutTheranPortalEntrance);
-        }
         info.ChangeToIdle();
         return true;
     }

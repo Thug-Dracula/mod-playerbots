@@ -16,6 +16,11 @@ static bool IsGatherObjectiveForDoQuest(NewRpgInfo::DoQuest const* data)
         return false;
     Quest const* q = data->quest;
     int32 obj = data->objectiveIdx;
+    // objectiveIdx is -1 while heading to turn-in (DoCompletedQuest) and can
+    // still be -1 here when the quest leaves COMPLETE again (failed timer,
+    // required item destroyed) before the RPG action resets state.
+    if (obj < 0)
+        return false;
     if (obj < QUEST_OBJECTIVES_COUNT)
     {
         int32 entry = q->RequiredNpcOrGo[obj];
