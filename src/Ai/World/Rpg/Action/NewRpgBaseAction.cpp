@@ -1,5 +1,6 @@
 #include "NewRpgBaseAction.h"
 
+#include <algorithm>
 #include <sstream>
 
 #include "BroadcastHelper.h"
@@ -50,9 +51,14 @@ bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
     if (dest == WorldPosition())
         return false;
 
-    if (dest != botAI->rpgInfo.moveFarPos)
+    // Clear stuck information only for a genuinely NEW destination.
+    // Callers like MoveWorldObjectTo re-roll a small random offset
+    // around the same object every call; treating each roll as a new
+    // dest reset the stuck counters every tick and the teleport
+    // recovery could never fire on those flows.
+    if (botAI->rpgInfo.moveFarPos.GetMapId() != dest.GetMapId() ||
+        botAI->rpgInfo.moveFarPos.GetExactDist(&dest) > 5.0f)
     {
-        // clear stuck information if it's a new dest
         botAI->rpgInfo.SetMoveFarTo(dest);
     }
 
@@ -1811,6 +1817,94 @@ bool NewRpgBaseAction::GetQuestPOIPosAndObjectiveIdx(uint32 questId, std::vector
     }
 
     return true;
+}
+
+// Resolve the height for a 2D quest-POI destination. quest_poi data has
+// no Z column; probing from MAX_HEIGHT lands on the TOPMOST surface, so
+// an objective inside a cave gets a destination on the hill ABOVE it —
+// every move then steers the bot out of the cave toward the roof. When
+// the objective's actual spawns (its creature/GO entries, or for item
+// objectives the creatures/GOs that yield the item) exist near the POI,
+// use the closest spawn's real Z; otherwise keep the surface probe.
+float NewRpgBaseAction::ResolveQuestPOIDestZ(Quest const* quest, int32 objectiveIdx,
+                                             float dx, float dy, float surfaceZ)
+{
+    if (!quest || objectiveIdx < 0)
+        return surfaceZ;
+
+    std::vector<uint32> creatureEntries;
+    std::vector<uint32> goEntries;
+
+    if (objectiveIdx < QUEST_OBJECTIVES_COUNT)
+    {
+        int32 const entry = quest->RequiredNpcOrGo[objectiveIdx];
+        if (entry > 0)
+            creatureEntries.push_back(entry);
+        else if (entry < 0)
+            goEntries.push_back(-entry);
+    }
+    else if (objectiveIdx < QUEST_OBJECTIVES_COUNT + QUEST_ITEM_OBJECTIVES_COUNT)
+    {
+        uint32 const itemId = quest->RequiredItemId[objectiveIdx - QUEST_OBJECTIVES_COUNT];
+        if (itemId)
+        {
+            for (auto const& [entry, items] : *sObjectMgr->GetGameObjectQuestItemMap())
+                if (std::find(items.begin(), items.end(), itemId) != items.end())
+                    goEntries.push_back(entry);
+
+            for (auto const& [entry, items] : *sObjectMgr->GetCreatureQuestItemMap())
+                if (std::find(items.begin(), items.end(), itemId) != items.end())
+                    creatureEntries.push_back(entry);
+        }
+    }
+
+    if (creatureEntries.empty() && goEntries.empty())
+        return surfaceZ;
+
+    // The nearest matching spawn in 2D decides the height. 100y absorbs
+    // POI-polygon inaccuracy while staying local to the objective.
+    float constexpr maxDistSq = 100.0f * 100.0f;
+    float bestSq = maxDistSq;
+    float bestZ = surfaceZ;
+    uint32 const mapId = bot->GetMapId();
+
+    if (!creatureEntries.empty())
+    {
+        for (auto const& itr : sObjectMgr->GetAllCreatureData())
+        {
+            CreatureData const& data = itr.second;
+            if (data.mapid != mapId)
+                continue;
+            if (std::find(creatureEntries.begin(), creatureEntries.end(), data.id) == creatureEntries.end())
+                continue;
+            float const dsq = (data.posX - dx) * (data.posX - dx) + (data.posY - dy) * (data.posY - dy);
+            if (dsq < bestSq)
+            {
+                bestSq = dsq;
+                bestZ = data.posZ;
+            }
+        }
+    }
+
+    if (!goEntries.empty())
+    {
+        for (auto const& itr : sObjectMgr->GetAllGOData())
+        {
+            GameObjectData const& data = itr.second;
+            if (data.mapid != mapId)
+                continue;
+            if (std::find(goEntries.begin(), goEntries.end(), data.id) == goEntries.end())
+                continue;
+            float const dsq = (data.posX - dx) * (data.posX - dx) + (data.posY - dy) * (data.posY - dy);
+            if (dsq < bestSq)
+            {
+                bestSq = dsq;
+                bestZ = data.posZ;
+            }
+        }
+    }
+
+    return bestZ;
 }
 
 WorldPosition NewRpgBaseAction::SelectRandomGrindPos(Player* bot)

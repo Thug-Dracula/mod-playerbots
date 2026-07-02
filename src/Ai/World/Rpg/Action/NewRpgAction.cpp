@@ -343,6 +343,12 @@ bool NewRpgDoQuestAction::DoIncompleteQuest(NewRpgInfo::DoQuest& data)
         if (dz == INVALID_HEIGHT || dz == VMAP_INVALID_HEIGHT_VALUE)
             return false;
 
+        // The top-down probe above lands on the topmost surface; for an
+        // objective inside a cave that is the hill ABOVE it. Refine the
+        // height from the objective's actual spawns when they exist near
+        // the POI, so the destination is the cave floor, not the roof.
+        dz = ResolveQuestPOIDestZ(data.quest, objectiveIdx, dx, dy, dz);
+
         WorldPosition pos(bot->GetMapId(), dx, dy, dz);
         data.lastReachPOI = 0;
         data.pos = pos;

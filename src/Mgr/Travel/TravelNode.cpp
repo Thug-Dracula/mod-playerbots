@@ -1358,24 +1358,43 @@ bool TravelNodeMap::GetFullPath(TravelPlan& plan,
         // start candidate.
         std::vector<WorldPosition> endPath;
 
-        for (TravelNode* startNode : startNodes)
+        // Consider the end node itself as the route start first: when
+        // the bot can walk to it directly, a single-node route (begin
+        // leg to the node + tail leg from it) beats any pair that
+        // detours through a second node. Vital for leaf nodes placed
+        // inside caves — the node pulls the walk through the entrance
+        // coil instead of routing the bot backward to a distant
+        // neighbor and in again along the stored link.
+        std::vector<TravelNode*> orderedStartNodes = startNodes;
+        auto selfItr = std::find(orderedStartNodes.begin(), orderedStartNodes.end(), endNode);
+        if (selfItr != orderedStartNodes.end())
+            std::rotate(orderedStartNodes.begin(), selfItr, selfItr + 1);
+
+        for (TravelNode* startNode : orderedStartNodes)
         {
-            if (startNode == endNode)
-                continue;
-
             if (std::find(badStartNodes.begin(), badStartNodes.end(), startNode) != badStartNodes.end())
-                continue;
-
-            if (!startNode->hasRouteTo(endNode))
                 continue;
 
             WorldPosition startNodePosition = *startNode->getPosition();
             WorldPosition endNodePosition = *endNode->getPosition();
             float const maxStartDistance = startNode->isTransport() ? 20.0f : 1.0f;
 
-            TravelNodeRoute route = GetNodeRoute(startNode, endNode, botPlayer);
-            if (route.isEmpty())
-                continue;
+            TravelNodeRoute route;
+            if (startNode == endNode)
+            {
+                // Single-node route: no links to traverse — the plan is
+                // just begin leg to the node plus tail leg from it.
+                route = TravelNodeRoute({startNode});
+            }
+            else
+            {
+                if (!startNode->hasRouteTo(endNode))
+                    continue;
+
+                route = GetNodeRoute(startNode, endNode, botPlayer);
+                if (route.isEmpty())
+                    continue;
+            }
 
             // On a transport there is no walkable navmesh under the bot,
             // so emit no begin leg at all — the walk executor would
