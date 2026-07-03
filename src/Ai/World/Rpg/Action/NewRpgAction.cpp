@@ -576,6 +576,13 @@ bool NewRpgDoQuestAction::DoCompletedQuest(NewRpgInfo::DoQuest& data)
         if (dz == INVALID_HEIGHT || dz == VMAP_INVALID_HEIGHT_VALUE)
             return false;
 
+        // The top-down probe lands on the terrain; quest enders on
+        // treehouse platforms or towers sit well above it. Refine the
+        // height from the ender's actual spawn so the walk targets the
+        // platform (and routes up its ramp) instead of the ground
+        // below it.
+        dz = ResolveQuestTurnInDestZ(questId, dx, dy, dz);
+
         WorldPosition pos(bot->GetMapId(), dx, dy, dz);
         data.lastReachPOI = 0;
         data.pos = pos;

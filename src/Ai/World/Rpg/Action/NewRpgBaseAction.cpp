@@ -1412,11 +1412,40 @@ float NewRpgBaseAction::ResolveQuestPOIDestZ(Quest const* quest, int32 objective
         }
     }
 
+    return NearestQuestSpawnZ(creatureEntries, goEntries, dx, dy, surfaceZ);
+}
+
+// Turn-in variant: the destination is the quest ender, which can sit
+// well above the terrain (treehouse platforms, towers). Resolve the
+// height from the ender's actual spawn instead of the surface probe.
+float NewRpgBaseAction::ResolveQuestTurnInDestZ(uint32 questId, float dx, float dy, float surfaceZ)
+{
+    std::vector<uint32> creatureEntries;
+    std::vector<uint32> goEntries;
+
+    for (auto const& [entry, qId] : *sObjectMgr->GetCreatureQuestInvolvedRelationMap())
+        if (qId == questId)
+            creatureEntries.push_back(entry);
+
+    for (auto const& [entry, qId] : *sObjectMgr->GetGOQuestInvolvedRelationMap())
+        if (qId == questId)
+            goEntries.push_back(entry);
+
     if (creatureEntries.empty() && goEntries.empty())
         return surfaceZ;
 
-    // The nearest matching spawn in 2D decides the height. 100y absorbs
-    // POI-polygon inaccuracy while staying local to the objective.
+    return NearestQuestSpawnZ(creatureEntries, goEntries, dx, dy, surfaceZ);
+}
+
+// The nearest matching spawn in 2D decides the height. 100y absorbs
+// POI-polygon inaccuracy while staying local to the objective.
+float NewRpgBaseAction::NearestQuestSpawnZ(std::vector<uint32> const& creatureEntries,
+                                           std::vector<uint32> const& goEntries,
+                                           float dx, float dy, float surfaceZ)
+{
+    if (creatureEntries.empty() && goEntries.empty())
+        return surfaceZ;
+
     float constexpr maxDistSq = 100.0f * 100.0f;
     float bestSq = maxDistSq;
     float bestZ = surfaceZ;

@@ -71,6 +71,9 @@ protected:
 protected:
     bool GetQuestPOIPosAndObjectiveIdx(uint32 questId, std::vector<POIInfo>& poiInfo, bool toComplete = false);
     float ResolveQuestPOIDestZ(Quest const* quest, int32 objectiveIdx, float dx, float dy, float surfaceZ);
+    float ResolveQuestTurnInDestZ(uint32 questId, float dx, float dy, float surfaceZ);
+    float NearestQuestSpawnZ(std::vector<uint32> const& creatureEntries, std::vector<uint32> const& goEntries,
+                             float dx, float dy, float surfaceZ);
     static WorldPosition SelectRandomGrindPos(Player* bot);
     static WorldPosition SelectRandomCampPos(Player* bot);
     bool SelectRandomFlightTaxiNode(uint32& flightMasterEntry, WorldPosition& flightMasterPos, std::vector<uint32>& path);
