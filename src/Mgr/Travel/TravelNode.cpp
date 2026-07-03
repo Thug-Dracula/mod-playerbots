@@ -1800,9 +1800,21 @@ TravelNodeRoute TravelNodeMap::FindRouteNearestNodes(WorldPosition startPos, Wor
 // proof: the begin leg may be unreachable (plan dies mid-flight) and the
 // tail collapses to one straight node->destination segment the walker
 // rejects, so the route re-derives forever within arrival range.
+// Why the last getRoute on this thread returned empty — surfaced by the
+// route-resolution debug whisper so failures are attributable in-game.
+// thread_local: bots resolve on their map-update thread.
+static thread_local std::string s_lastRouteFailReason;
+
+std::string const& TravelNodeMap::GetLastRouteFailReason()
+{
+    return s_lastRouteFailReason;
+}
+
 TravelNodeRoute TravelNodeMap::getRoute(WorldPosition startPos, WorldPosition endPos,
     std::vector<WorldPosition>& startPath, std::vector<WorldPosition>& endPath, Unit* unit)
 {
+    s_lastRouteFailReason.clear();
+
     Player* botPlayer = unit ? unit->ToPlayer() : nullptr;
 
     // A bot standing on a transport can only start its route from nodes
@@ -1813,7 +1825,10 @@ TravelNodeRoute TravelNodeMap::getRoute(WorldPosition startPos, WorldPosition en
     std::vector<TravelNode*> startNodes = getNodes(startPos, -1, transportEntry);
     std::vector<TravelNode*> endNodes = getNodes(endPos);
     if (startNodes.empty() || endNodes.empty())
+    {
+        s_lastRouteFailReason = startNodes.empty() ? "no nodes near start" : "no nodes near dest";
         return TravelNodeRoute();
+    }
 
     // getNodes returns the list distance-sorted; keep the closest few.
     constexpr size_t MAX_CANDIDATE_NODES = 5;
@@ -1823,6 +1838,7 @@ TravelNodeRoute TravelNodeMap::getRoute(WorldPosition startPos, WorldPosition en
         endNodes.resize(MAX_CANDIDATE_NODES);
 
     std::vector<TravelNode*> badStartNodes;
+    uint32 pairsNoReach = 0, pairsNoAstar = 0, tailFails = 0, beginFails = 0;
 
     for (TravelNode* endNode : endNodes)
     {
@@ -1861,11 +1877,17 @@ TravelNodeRoute TravelNodeMap::getRoute(WorldPosition startPos, WorldPosition en
             else
             {
                 if (!startNode->hasRouteTo(endNode))
+                {
+                    ++pairsNoReach;
                     continue;
+                }
 
                 route = GetNodeRoute(startNode, endNode, botPlayer);
                 if (route.isEmpty())
+                {
+                    ++pairsNoAstar;
                     continue;
+                }
             }
 
             // On a transport there is no walkable navmesh under the
@@ -1905,6 +1927,7 @@ TravelNodeRoute TravelNodeMap::getRoute(WorldPosition startPos, WorldPosition en
 
                     if (!hasEndPath)
                     {
+                        ++tailFails;
                         tailPath.clear();
                         break;
                     }
@@ -1941,6 +1964,7 @@ TravelNodeRoute TravelNodeMap::getRoute(WorldPosition startPos, WorldPosition en
             }
             if (!hasPath)
             {
+                ++beginFails;
                 badStartNodes.push_back(startNode);
                 continue;
             }
@@ -1951,6 +1975,12 @@ TravelNodeRoute TravelNodeMap::getRoute(WorldPosition startPos, WorldPosition en
         }
     }
 
+    s_lastRouteFailReason = "noReach:" + std::to_string(pairsNoReach) +
+                            " noAstar:" + std::to_string(pairsNoAstar) +
+                            " tailFail:" + std::to_string(tailFails) +
+                            " beginFail:" + std::to_string(beginFails) +
+                            " (s:" + std::to_string(startNodes.size()) +
+                            " e:" + std::to_string(endNodes.size()) + ")";
     return TravelNodeRoute();
 }
 

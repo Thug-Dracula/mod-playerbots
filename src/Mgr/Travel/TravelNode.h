@@ -710,6 +710,10 @@ public:
                              std::vector<WorldPosition>& startPath,
                              std::vector<WorldPosition>& endPath, Unit* unit = nullptr);
 
+    // Why the last getRoute on this thread returned empty (for the
+    // route-resolution debug whisper).
+    static std::string const& GetLastRouteFailReason();
+
     // Picks the nearest start/end nodes for two world positions and runs A*
     // over the node graph to return a full route between them.
     TravelNodeRoute FindRouteNearestNodes(WorldPosition startPos,

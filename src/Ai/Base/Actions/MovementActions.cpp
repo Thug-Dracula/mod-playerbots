@@ -3640,16 +3640,19 @@ TravelPath MovementAction::ResolveMovePath(const WorldPosition& startPosition, c
         // we're following a raw partial probe (missing coverage /
         // failed route selection) — the difference between "walks the
         // node path" and "walks into a mountain" is invisible in-game.
+        // On failure, append getRoute's per-stage fail counters.
         if (!outMovePath.empty())
         {
             float const endGap = outMovePath.getBack().distance(endPos);
-            EmitDebugMove("Resolve", endGap < totalDistance * 0.1f ? "node-route" : "partial-fallback",
+            bool const reached = endGap < totalDistance * 0.1f;
+            EmitDebugMove("Resolve", reached ? "node-route" : "partial-fallback",
                           outMovePath.getBack().GetPositionX(), outMovePath.getBack().GetPositionY(),
-                          outMovePath.getBack().GetPositionZ());
+                          outMovePath.getBack().GetPositionZ(),
+                          reached ? nullptr : TravelNodeMap::GetLastRouteFailReason().c_str());
         }
         else
             EmitDebugMove("Resolve", "no-route", endPos.GetPositionX(), endPos.GetPositionY(),
-                          endPos.GetPositionZ());
+                          endPos.GetPositionZ(), TravelNodeMap::GetLastRouteFailReason().c_str());
     }
     else
     {
