@@ -395,13 +395,22 @@ bool NewRpgDoQuestAction::DoIncompleteQuest(NewRpgInfo::DoQuest& data)
         int32 currentObjective = data.objectiveIdx;
         // check if the objective has progression
         Quest const* quest = sObjectMgr->GetQuestTemplate(questId);
-        const QuestStatusData& q_status = bot->getQuestStatusMap().at(questId);
-        if (currentObjective < QUEST_OBJECTIVES_COUNT)
+        auto statusItr = bot->getQuestStatusMap().find(questId);
+        if (statusItr == bot->getQuestStatusMap().end())
+        {
+            // Quest vanished from the log (rewarded/dropped) while this
+            // state was still active — stop pursuing it.
+            botAI->rpgInfo.ChangeToIdle();
+            return true;
+        }
+        const QuestStatusData& q_status = statusItr->second;
+        if (currentObjective >= 0 && currentObjective < QUEST_OBJECTIVES_COUNT)
         {
             if (q_status.CreatureOrGOCount[currentObjective] != 0 && quest->RequiredNpcOrGoCount[currentObjective])
                 hasProgression = true;
         }
-        else if (currentObjective < QUEST_OBJECTIVES_COUNT + QUEST_ITEM_OBJECTIVES_COUNT)
+        else if (currentObjective >= QUEST_OBJECTIVES_COUNT &&
+                 currentObjective < QUEST_OBJECTIVES_COUNT + QUEST_ITEM_OBJECTIVES_COUNT)
         {
             if (q_status.ItemCount[currentObjective - QUEST_OBJECTIVES_COUNT] != 0 &&
                 quest->RequiredItemCount[currentObjective - QUEST_OBJECTIVES_COUNT])
