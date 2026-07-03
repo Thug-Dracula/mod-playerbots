@@ -468,7 +468,18 @@ bool NewRpgDoQuestAction::DoIncompleteQuest(NewRpgInfo::DoQuest& data)
             isGatherObjective = true;
 
         if (isGatherObjective)
+        {
+            // Item objectives sourced from mob drops are kill quests in
+            // disguise (venom sacs, spider legs): when a mob that can
+            // drop the item is nearby, yield the tick so the grind
+            // action picks it up. Under per-tick movement resolution
+            // MoveRandomNear succeeds almost every tick, so without
+            // this yield the bot roams the camp forever, surrounded by
+            // the very mobs it needs to kill.
+            if (HasNearbyQuestMob(30.0f))
+                return false;
             return MoveRandomNear(20.0f);
+        }
     }
 
     // Kill-quest scout: at POI for 30s+ with no quest mob in sight
