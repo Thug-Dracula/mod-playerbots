@@ -3976,7 +3976,36 @@ bool MovementAction::MoveTo2(const WorldPosition& endPos, bool idle, bool react,
     lastMove.setPath(movePath);
 
     if (movePath.empty())
+    {
+        // Nothing resolves from HERE at all — the bot is usually
+        // standing on a poly its own nav filter excludes (a steep
+        // ledge it strayed onto): probes and begin legs all fail from
+        // such a start and the bot freezes in place, re-resolving
+        // every tick. Step to the nearest walkable poly so the next
+        // resolution has a valid start. A short visible walk — safe
+        // with players watching, unlike the teleport recovery.
+        if (mover == bot && !bot->GetTransport())
+        {
+            WorldPosition correct = startPos;
+            if (correct.ClosestCorrectPoint(10.0f, 10.0f))
+            {
+                float const stepDist = startPos.distance(correct);
+                if (stepDist > 0.5f && stepDist < 15.0f)
+                {
+                    bot->GetMotionMaster()->Clear();
+                    bot->GetMotionMaster()->MovePoint(
+                        correct.GetMapId(),
+                        Position(correct.GetPositionX(), correct.GetPositionY(), correct.GetPositionZ(), 0.f),
+                        FORCED_MOVEMENT_RUN, 0.f, false);
+                    EmitDebugMove("MoveTo2", "unstick-step", correct.GetPositionX(), correct.GetPositionY(),
+                                  correct.GetPositionZ());
+                    WaitForReach(stepDist);
+                    return true;
+                }
+            }
+        }
         return false;
+    }
 
     if (!bot->GetTransport())
         movePath.makeShortCut(startPos, sPlayerbotAIConfig.reactDistance, bot);
