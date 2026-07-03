@@ -3611,9 +3611,17 @@ TravelPath MovementAction::ResolveMovePath(const WorldPosition& startPosition, c
 
     bool needsLongPath = false;
 
+    // Hardcoded graph threshold: gating on sightDistance ties routing to
+    // a combat-tuning key that deployments raise freely — with it raised,
+    // multi-hundred-yard trips never consult the node graph and fall to
+    // raw probes that dead-end against terrain. 50y is the established
+    // cutoff; getFullPath's probe-first shortcut still takes the direct
+    // walk whenever one exists, so short trips lose nothing.
+    constexpr float TRAVELNODE_THRESHOLD = 50.0f;
+
     if (startPos.GetMapId() != endPos.GetMapId())
         needsLongPath = true;
-    else if (totalDistance > sPlayerbotAIConfig.sightDistance)
+    else if (totalDistance > TRAVELNODE_THRESHOLD)
         needsLongPath = true;
     // Acherus: The Ebon Hold (DK start, map 609) is a floating citadel; large
     // vertical moves cross elevator/platform Z-stratification that navmesh-only
@@ -3626,6 +3634,22 @@ TravelPath MovementAction::ResolveMovePath(const WorldPosition& startPosition, c
     if (needsLongPath && !sTravelNodeMap.getNodes().empty() && !bot->InBattleground())
     {
         outMovePath = sTravelNodeMap.getFullPath(startPos, endPos, bot);  // Pathfind using nodes.
+
+        // Diagnostic: with `debug move` on, say whether the graph
+        // produced a route that actually reaches the destination or
+        // we're following a raw partial probe (missing coverage /
+        // failed route selection) — the difference between "walks the
+        // node path" and "walks into a mountain" is invisible in-game.
+        if (!outMovePath.empty())
+        {
+            float const endGap = outMovePath.getBack().distance(endPos);
+            EmitDebugMove("Resolve", endGap < totalDistance * 0.1f ? "node-route" : "partial-fallback",
+                          outMovePath.getBack().GetPositionX(), outMovePath.getBack().GetPositionY(),
+                          outMovePath.getBack().GetPositionZ());
+        }
+        else
+            EmitDebugMove("Resolve", "no-route", endPos.GetPositionX(), endPos.GetPositionY(),
+                          endPos.GetPositionZ());
     }
     else
     {
