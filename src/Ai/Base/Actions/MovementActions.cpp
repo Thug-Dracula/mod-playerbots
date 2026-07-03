@@ -1519,15 +1519,20 @@ float MovementAction::MoveDelay(float distance, bool backwards)
 // TODO should this be removed? (or modified to use "last movement" value?)
 void MovementAction::WaitForReach(float distance)
 {
-    float delay = 1000.0f * MoveDelay(distance);
+    float delay = 1000.0f * MoveDelay(distance) + sPlayerbotAIConfig.reactDelay;
 
     if (delay > sPlayerbotAIConfig.maxWaitForMove)
         delay = sPlayerbotAIConfig.maxWaitForMove;
 
-    Unit* target = *botAI->GetAiObjectContext()->GetValue<Unit*>("current target");
-    Unit* player = *botAI->GetAiObjectContext()->GetValue<Unit*>("enemy player target");
-    if ((player || target) && delay > sPlayerbotAIConfig.globalCoolDown)
-        delay = sPlayerbotAIConfig.globalCoolDown;
+    // Deliberately NOT clamped to globalCoolDown while a target exists
+    // (the reference keeps this disabled too): a lingering grind or
+    // combat target would collapse the whole movement commitment to
+    // 0.5s, so every re-entry cancels the in-flight spline and
+    // re-dispatches — bots visibly jitter back and forward mid-route.
+    // Unit* target = *botAI->GetAiObjectContext()->GetValue<Unit*>("current target");
+    // Unit* player = *botAI->GetAiObjectContext()->GetValue<Unit*>("enemy player target");
+    // if ((player || target) && delay > sPlayerbotAIConfig.globalCoolDown)
+    //     delay = sPlayerbotAIConfig.globalCoolDown;
 
     if (delay < 0)
         delay = 0;
