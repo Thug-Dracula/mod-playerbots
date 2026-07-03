@@ -1624,17 +1624,29 @@ TravelNodeRoute TravelNodeMap::GetNodeRoute(TravelNode* start, TravelNode* goal,
     std::push_heap(open.begin(), open.end(), heapComp);
     startStub->open = true;
 
-    constexpr uint32 MAX_A_STAR_EXPLORED = 500;
+    // Runaway guard only: with a valid heap a real route resolves in a
+    // few dozen expansions; this exists to bound a pathological graph,
+    // not to fail legitimate long routes (the old 500 cap did, because
+    // in-place cost mutation corrupted the heap and exploration order).
+    constexpr uint32 MAX_A_STAR_EXPLORED = 3000;
     uint32 nodesExplored = 0;
 
     while (!open.empty())
     {
-        if (++nodesExplored > MAX_A_STAR_EXPLORED)
-            return TravelNodeRoute();
-
         std::pop_heap(open.begin(), open.end(), heapComp);
         currentNode = open.back();
         open.pop_back();
+
+        // Lazy deletion: relaxing a node already in the heap pushes a
+        // duplicate entry instead of mutating in place (which would
+        // corrupt heap order). A node expanded earlier at better cost
+        // leaves stale entries behind — skip them.
+        if (currentNode->closed)
+            continue;
+
+        if (++nodesExplored > MAX_A_STAR_EXPLORED)
+            return TravelNodeRoute();
+
         currentNode->open = false;
 
         currentNode->closed = true;
@@ -1685,12 +1697,11 @@ TravelNodeRoute TravelNodeMap::GetNodeRoute(TravelNode* start, TravelNode* goal,
             if (childNode->closed)
                 childNode->closed = false;
 
-            if (!childNode->open)
-            {
-                open.push_back(childNode);
-                std::push_heap(open.begin(), open.end(), heapComp);
-                childNode->open = true;
-            }
+            // Always push on relax — duplicates are cheaper than a
+            // corrupted heap; stale entries are skipped at pop time.
+            open.push_back(childNode);
+            std::push_heap(open.begin(), open.end(), heapComp);
+            childNode->open = true;
         }
     }
 
