@@ -3818,14 +3818,31 @@ void MovementAction::DispatchMovement(TravelPath movePath, bool generatePath, bo
 
     if (!generatePath || bot->IsFreeFlying())
     {
-        mm.MovePoint(movePosition.GetMapId(),
-                     Position(movePosition.GetPositionX(), movePosition.GetPositionY(),
-                              movePosition.GetPositionZ(), 0.f),
+        // Bounded hop: target the furthest resolved waypoint within
+        // reactDistance instead of the path end. The point generator's
+        // internal pathfinder can straight-line to an invalid poly (the
+        // NOT_USING_PATH shortcut for player movers), so a full-length
+        // hop from shallow water toward a land target hundreds of yards
+        // away walks the bot through the air the whole way; a bounded
+        // hop self-corrects on the next dispatch, where the bot is
+        // usually out of the water and back on the spline branch.
+        WorldPosition botPos(bot);
+        WorldPosition hopPosition = path.front();
+        for (auto& p : path)
+        {
+            if (botPos.distance(p) > sPlayerbotAIConfig.reactDistance)
+                break;
+            hopPosition = p;
+        }
+
+        mm.MovePoint(hopPosition.GetMapId(),
+                     Position(hopPosition.GetPositionX(), hopPosition.GetPositionY(),
+                              hopPosition.GetPositionZ(), 0.f),
                      moveMode,
                      bot->IsFlying() ? bot->GetSpeed(MOVE_FLIGHT) : 0.f,
                      bot->IsFlying());
-        EmitDebugMove("Dispatch", "movepoint", movePosition.GetPositionX(), movePosition.GetPositionY(),
-                      movePosition.GetPositionZ());
+        EmitDebugMove("Dispatch", "movepoint", hopPosition.GetPositionX(), hopPosition.GetPositionY(),
+                      hopPosition.GetPositionZ());
     }
     else
     {

@@ -1341,6 +1341,27 @@ TravelPath TravelNodeRoute::buildPath(std::vector<WorldPosition> pathToStart, st
                         nodePath = &returnNodePath;
                     }
                 }
+                else if (!prevNode->isTransport() && prevNode->GetMapId() == node->GetMapId())
+                {
+                    // Null-mover leg repair: an incomplete link (a link
+                    // row whose stored waypoints are missing) must not
+                    // collapse to bare node centers — the dispatched
+                    // spline interpolates STRAIGHT between them, walking
+                    // the bot through the air for the whole gap. Path
+                    // the leg live into a LOCAL temporary instead; no
+                    // shared-graph mutation, so it stays safe under the
+                    // shared lock the resolvers hold.
+                    WorldPosition prevPos = *prevNode->getPosition();
+                    WorldPosition nodePos = *node->getPosition();
+                    std::vector<WorldPosition> localLeg = prevPos.getPathTo(nodePos, nullptr);
+                    if (nodePos.isPathTo(localLeg))
+                    {
+                        returnNodePath = TravelNodePath(prevPos.distance(nodePos));
+                        returnNodePath.setPath(localLeg);
+                        returnNodePath.setComplete(true);
+                        nodePath = &returnNodePath;
+                    }
+                }
             }
 
             if (!nodePath || !nodePath->getComplete())  // If we can not build a path just try to move to the node.
