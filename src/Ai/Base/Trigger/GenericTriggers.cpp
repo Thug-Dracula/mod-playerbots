@@ -136,7 +136,7 @@ bool OutNumberedTrigger::IsActive()
 
         int32 dLevel = creature->GetLevel() - botLevel;
         if (dLevel > -10)
-            foePower = std::max(100 + 10 * dLevel, dLevel * 200);
+            foePower += std::max(100 + 10 * dLevel, dLevel * 200);  // accumulate: being outnumbered scales with foe COUNT
     }
 
     if (!foePower)
