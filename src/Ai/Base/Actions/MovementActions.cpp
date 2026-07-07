@@ -3892,9 +3892,15 @@ void MovementAction::DispatchMovement(TravelPath movePath, bool generatePath, bo
         // next re-resolution continues from there. Dense sources
         // space points a few yards apart; 50y is far beyond any
         // legitimate spacing.
+        // Start at i=2: never truncate the FIRST segment (bot -> first
+        // waypoint). Truncating there would resize to a single point and
+        // return with no movement at all — a hard stall. Dense navmesh
+        // paths (~4y spacing) never trip this; it only guards against a
+        // sparse tail (degraded node leg / shortcut), and the bot must
+        // still advance along its first leg and re-resolve next tick.
         constexpr float MAX_SPLINE_SEGMENT = 50.0f;
         bool truncated = false;
-        for (size_t i = 1; i < pointPath.size(); ++i)
+        for (size_t i = 2; i < pointPath.size(); ++i)
         {
             if ((pointPath[i] - pointPath[i - 1]).length() > MAX_SPLINE_SEGMENT)
             {
