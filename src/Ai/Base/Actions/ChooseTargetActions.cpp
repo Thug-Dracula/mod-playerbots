@@ -104,6 +104,48 @@ bool AttackAnythingAction::Execute(Event event)
     return result;
 }
 
+// True when this creature IS a quest objective for the bot: a kill-credit
+// target still needed, or a mob that drops a quest item the bot still
+// needs. Used to exempt such mobs from the travel-focus attack gate — a
+// spider that drops the venom we are questing for is the objective, not a
+// distraction to walk past.
+static bool IsQuestObjectiveCreature(Player* bot, Creature* creature)
+{
+    if (!creature)
+        return false;
+
+    uint32 const entry = creature->GetEntry();
+
+    for (uint16 slot = 0; slot < MAX_QUEST_LOG_SIZE; ++slot)
+    {
+        uint32 questId = bot->GetQuestSlotQuestId(slot);
+        if (!questId)
+            continue;
+        if (bot->GetQuestStatus(questId) != QUEST_STATUS_INCOMPLETE)
+            continue;
+        Quest const* quest = sObjectMgr->GetQuestTemplate(questId);
+        if (!quest)
+            continue;
+
+        QuestStatusData const& qs = bot->getQuestStatusMap().at(questId);
+        for (int i = 0; i < QUEST_OBJECTIVES_COUNT; ++i)
+        {
+            int32 req = quest->RequiredNpcOrGo[i];
+            if (req > 0 && uint32(req) == entry && qs.CreatureOrGOCount[i] < quest->RequiredNpcOrGoCount[i])
+                return true;
+        }
+    }
+
+    // Mob drops a still-needed quest item (HaveQuestLootForPlayer already
+    // filters by what this player still needs).
+    if (CreatureTemplate const* ct = sObjectMgr->GetCreatureTemplate(entry))
+        if (uint32 lootId = ct->lootid)
+            if (LootTemplates_Creature.HaveQuestLootForPlayer(lootId, bot))
+                return true;
+
+    return false;
+}
+
 bool AttackAnythingAction::isUseful()
 {
     if (!bot || !botAI)  // Prevents invalid accesses
@@ -148,6 +190,14 @@ bool AttackAnythingAction::isUseful()
         if (headingToTurnIn || travelingToPOI)
         {
             Creature* creature = target->ToCreature();
+            // Exempt quest objectives while traveling TO the POI: a mob
+            // that gives kill credit or drops a needed quest item IS the
+            // objective (Webwood Venom spiders), so engage it rather than
+            // walk past. Not exempt while heading to turn-in — that quest
+            // is already complete, so its mobs are just distractions.
+            if (travelingToPOI && IsQuestObjectiveCreature(bot, creature))
+                return true;
+
             bool const wouldAggroAnyway = creature && creature->IsHostileTo(bot) &&
                 bot->GetDistance(creature) < creature->GetAggroRange(bot) * 1.5f &&
                 static_cast<int32>(creature->GetLevel()) <= static_cast<int32>(bot->GetLevel()) + 3 &&
