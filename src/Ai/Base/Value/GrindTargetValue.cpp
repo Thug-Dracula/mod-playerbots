@@ -37,15 +37,30 @@ Unit* GrindTargetValue::FindTargetForGrinding(uint32 assistCount)
                    !GET_PLAYERBOT_AI(master)))
         master = nullptr;
 
+    // Engage the CLOSEST attacker first, not an arbitrary one. The
+    // "attackers" list is hash-ordered (unordered_set), so returning the
+    // first alive entry picks a random mob — the bot then walks toward it,
+    // possibly the farthest, straight past nearer hostiles into the middle
+    // of the pack. Picking the nearest makes it fight outside-in and work
+    // inward as each falls.
     GuidVector attackers = context->GetValue<GuidVector>("attackers")->Get();
+    Unit* closestAttacker = nullptr;
+    float closestDist = 0.0f;
     for (ObjectGuid const guid : attackers)
     {
         Unit* unit = botAI->GetUnit(guid);
         if (!unit || !unit->IsAlive())
             continue;
 
-        return unit;
+        float const dist = bot->GetDistance(unit);
+        if (!closestAttacker || dist < closestDist)
+        {
+            closestDist = dist;
+            closestAttacker = unit;
+        }
     }
+    if (closestAttacker)
+        return closestAttacker;
 
     GuidVector targets = *context->GetValue<GuidVector>("possible targets");
     if (targets.empty())
