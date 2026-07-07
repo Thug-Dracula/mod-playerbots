@@ -77,12 +77,21 @@ void MovementAction::EmitDebugMove(char const* method, char const* generator, fl
     if (!botAI->HasStrategy("debug move", BOT_STATE_NON_COMBAT))
         return;
 
+    // Distance to the actual RPG GOAL (the NPC / quest POI / camp), as
+    // opposed to `dis` below which is only the immediate move step. -1
+    // when there is no positional goal. Without this the step distance
+    // sits next to the target name and reads as "the NPC is Xy away".
+    float goalDist = -1.0f;
+
     auto resolveName = [&](ObjectGuid guid) -> std::string
     {
         if (!guid)
             return "";
         if (WorldObject* obj = botAI->GetWorldObject(guid))
+        {
+            goalDist = bot->GetExactDist(obj);
             return obj->GetName();
+        }
         return "";
     };
 
@@ -181,11 +190,24 @@ void MovementAction::EmitDebugMove(char const* method, char const* generator, fl
                     targetName = "flightmaster:" + ct->Name;
             }
             break;
-        case RPG_GO_GRIND: targetName = "grind-pos"; break;
-        case RPG_GO_CAMP: targetName = "camp-pos"; break;
+        case RPG_GO_GRIND:
+            targetName = "grind-pos";
+            if (auto* data = std::get_if<NewRpgInfo::GoGrind>(&info.data))
+                goalDist = bot->GetExactDist(data->pos.GetPositionX(), data->pos.GetPositionY(), data->pos.GetPositionZ());
+            break;
+        case RPG_GO_CAMP:
+            targetName = "camp-pos";
+            if (auto* data = std::get_if<NewRpgInfo::GoCamp>(&info.data))
+                goalDist = bot->GetExactDist(data->pos.GetPositionX(), data->pos.GetPositionY(), data->pos.GetPositionZ());
+            break;
         case RPG_WANDER_RANDOM: targetName = "wander-random"; break;
         default: break;
     }
+
+    // Quest POI distance (the DoQuest goal is a position, not the named mob).
+    if (status == RPG_DO_QUEST)
+        if (auto* data = std::get_if<NewRpgInfo::DoQuest>(&info.data))
+            goalDist = bot->GetExactDist(data->pos.GetPositionX(), data->pos.GetPositionY(), data->pos.GetPositionZ());
 
     // Travel-plan override: when actively routing through the node
     // graph, prefer the next-hop node name over any RPG-level target.
@@ -208,8 +230,11 @@ void MovementAction::EmitDebugMove(char const* method, char const* generator, fl
     out << "[M] | " << method
         << " | " << (generator && *generator ? generator : "-")
         << " | " << statusName
-        << " | " << std::fixed << std::setprecision(2) << dis << " yard"
+        << " | step " << std::fixed << std::setprecision(1) << dis << "y"
         << " | " << (targetName.empty() ? "-" : targetName.c_str());
+    // Real distance to the goal, so it isn't confused with the move step.
+    if (goalDist >= 0.0f)
+        out << " @" << std::fixed << std::setprecision(1) << goalDist << "y";
     if (extra && *extra)
         out << " | " << extra;
     botAI->TellMasterNoFacing(out);

@@ -70,53 +70,68 @@ bool NewRpgBaseAction::MoveWorldObjectTo(ObjectGuid guid, float distance)
         return false;
 
     // 8-angle deterministic iteration around the target. For each angle,
-    // validate the candidate against the navmesh with a strict ground-only
-    // filter (NAV_GROUND, exclude STEEP/WATER/MAGMA/SLIME). Reject if no
-    // valid poly within 5y XY+Z or if the snap drifts the Z by >10y.
-    // First angle that passes both LOS and navmesh-snap wins.
+    // validate the candidate against the navmesh and snap it to walkable
+    // ground. Reject if no valid poly within 5y XY+Z or if the snap drifts
+    // the Z by >10y. First angle that passes both LOS and navmesh-snap wins.
+    //
+    // Two passes: pass 0 prefers FLAT ground (exclude NAV_GROUND_STEEP);
+    // pass 1 allows steep. An NPC standing on or beside a slope has its
+    // whole 5.5y approach ring tagged steep, so a flat-only search rejects
+    // every angle and the caller mills with MoveRandomNear even though the
+    // NPC is a few yards away. Falling back to a steep approach lets the
+    // bot actually reach it (MoveFarTo's own soft-steep path handles the
+    // final walk). Flat is still tried first so bots don't climb needlessly.
     dtNavMeshQuery const* navMeshQuery =
         map->GetMapCollisionData().GetMMapData().GetNavMeshQuery();
     float const baseAngle = object->GetAngle(bot);
 
-    for (float step = 0.0f; step < 2.0f * static_cast<float>(M_PI);
-         step += static_cast<float>(M_PI) / 4.0f)
+    for (int pass = 0; pass < 2; ++pass)
     {
-        float const angle = baseAngle + step;
-        float x = object->GetPositionX() + std::cos(angle) * distance;
-        float y = object->GetPositionY() + std::sin(angle) * distance;
-        float z = object->GetPositionZ();
+        uint16 const includeFlags = (pass == 0) ? NAV_GROUND : (NAV_GROUND | NAV_GROUND_STEEP);
+        uint16 const excludeFlags = (pass == 0)
+            ? (NAV_GROUND_STEEP | NAV_WATER | NAV_MAGMA | NAV_SLIME)
+            : (NAV_WATER | NAV_MAGMA | NAV_SLIME);
 
-        // LOS check at eye height.
-        if (!bot->IsWithinLOS(x, y, z + bot->GetCollisionHeight()))
-            continue;
-
-        // Strict navmesh-snap validation (cmangos ClosestCorrectPoint port).
-        if (navMeshQuery)
+        for (float step = 0.0f; step < 2.0f * static_cast<float>(M_PI);
+             step += static_cast<float>(M_PI) / 4.0f)
         {
-            dtQueryFilter filter;
-            filter.setIncludeFlags(NAV_GROUND);
-            filter.setExcludeFlags(NAV_GROUND_STEEP | NAV_WATER | NAV_MAGMA | NAV_SLIME);
+            float const angle = baseAngle + step;
+            float x = object->GetPositionX() + std::cos(angle) * distance;
+            float y = object->GetPositionY() + std::sin(angle) * distance;
+            float z = object->GetPositionZ();
 
-            float const point[VERTEX_SIZE] = { y, z, x };
-            float const extents[VERTEX_SIZE] = { 5.0f, 5.0f, 5.0f };
-            float closest[VERTEX_SIZE] = { 0.0f, 0.0f, 0.0f };
-            dtPolyRef polyRef = INVALID_POLYREF;
-
-            if (!dtStatusSucceed(navMeshQuery->findNearestPoly(
-                    point, extents, &filter, &polyRef, closest)) ||
-                polyRef == INVALID_POLYREF)
+            // LOS check at eye height.
+            if (!bot->IsWithinLOS(x, y, z + bot->GetCollisionHeight()))
                 continue;
 
-            float const snappedZ = closest[1];
-            if (std::fabs(snappedZ - z) > 10.0f)
-                continue;
+            // Navmesh-snap validation (cmangos ClosestCorrectPoint port).
+            if (navMeshQuery)
+            {
+                dtQueryFilter filter;
+                filter.setIncludeFlags(includeFlags);
+                filter.setExcludeFlags(excludeFlags);
 
-            x = closest[2];
-            y = closest[0];
-            z = snappedZ;
+                float const point[VERTEX_SIZE] = { y, z, x };
+                float const extents[VERTEX_SIZE] = { 5.0f, 5.0f, 5.0f };
+                float closest[VERTEX_SIZE] = { 0.0f, 0.0f, 0.0f };
+                dtPolyRef polyRef = INVALID_POLYREF;
+
+                if (!dtStatusSucceed(navMeshQuery->findNearestPoly(
+                        point, extents, &filter, &polyRef, closest)) ||
+                    polyRef == INVALID_POLYREF)
+                    continue;
+
+                float const snappedZ = closest[1];
+                if (std::fabs(snappedZ - z) > 10.0f)
+                    continue;
+
+                x = closest[2];
+                y = closest[0];
+                z = snappedZ;
+            }
+
+            return MoveFarTo(WorldPosition(object->GetMapId(), x, y, z));
         }
-
-        return MoveFarTo(WorldPosition(object->GetMapId(), x, y, z));
     }
 
     return false;
