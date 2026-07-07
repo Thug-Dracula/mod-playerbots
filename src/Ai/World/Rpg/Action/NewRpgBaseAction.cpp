@@ -1052,6 +1052,11 @@ bool NewRpgBaseAction::TryUseQuestItem(ObjectGuid& pursuedGO, ObjectGuid& pursue
 
 bool NewRpgBaseAction::HasNearbyQuestMob(float range)
 {
+    return NearestQuestMob(range) != nullptr;
+}
+
+Creature* NewRpgBaseAction::NearestQuestMob(float range)
+{
     // kill objectives + mobs that drop required quest items
     std::unordered_set<uint32> neededCreatureEntries;
     std::unordered_set<uint32> neededItemIds;
@@ -1086,9 +1091,11 @@ bool NewRpgBaseAction::HasNearbyQuestMob(float range)
         }
     }
     if (neededCreatureEntries.empty() && neededItemIds.empty())
-        return false;
+        return nullptr;
 
     GuidVector possibleTargets = AI_VALUE(GuidVector, "possible targets");
+    Creature* nearest = nullptr;
+    float nearestDist = 0.0f;
     for (ObjectGuid guid : possibleTargets)
     {
         Creature* c = botAI->GetCreature(guid);
@@ -1096,26 +1103,38 @@ bool NewRpgBaseAction::HasNearbyQuestMob(float range)
             continue;
         if (!(c->GetPhaseMask() & bot->GetPhaseMask()))
             continue;
-        if (bot->GetDistance(c) > range)
+        float const dist = bot->GetDistance(c);
+        if (dist > range)
             continue;
+
+        bool relevant = false;
 
         // direct kill objective
         if (neededCreatureEntries.count(c->GetEntry()))
-            return true;
+            relevant = true;
 
         // drops a required quest item — HaveQuestLootForPlayer
         // already filters by what this player still needs
-        if (!neededItemIds.empty())
+        if (!relevant && !neededItemIds.empty())
         {
             CreatureTemplate const* tmpl = c->GetCreatureTemplate();
             if (tmpl && tmpl->lootid &&
                 LootTemplates_Creature.HaveQuestLootForPlayer(tmpl->lootid, bot))
             {
-                return true;
+                relevant = true;
             }
         }
+
+        if (!relevant)
+            continue;
+
+        if (!nearest || dist < nearestDist)
+        {
+            nearestDist = dist;
+            nearest = c;
+        }
     }
-    return false;
+    return nearest;
 }
 
 

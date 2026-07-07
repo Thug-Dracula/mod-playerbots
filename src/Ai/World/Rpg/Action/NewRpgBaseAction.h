@@ -68,6 +68,11 @@ protected:
     // travel so we yield to attack-anything instead of running past.
     bool HasNearbyQuestMob(float range = 20.0f);
 
+    // The nearest quest-relevant mob (kill credit or needed item drop)
+    // within range, else nullptr. Lets the gather roam head toward mobs
+    // in sight instead of camping for local respawns.
+    Creature* NearestQuestMob(float range = 20.0f);
+
 protected:
     bool GetQuestPOIPosAndObjectiveIdx(uint32 questId, std::vector<POIInfo>& poiInfo, bool toComplete = false);
     float ResolveQuestPOIDestZ(Quest const* quest, int32 objectiveIdx, float dx, float dy, float surfaceZ);

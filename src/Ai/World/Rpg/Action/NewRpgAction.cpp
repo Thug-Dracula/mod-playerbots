@@ -478,6 +478,14 @@ bool NewRpgDoQuestAction::DoIncompleteQuest(NewRpgInfo::DoQuest& data)
             // the very mobs it needs to kill.
             if (HasNearbyQuestMob(30.0f))
                 return false;
+
+            // If the source mobs are in SIGHT but farther out, head to
+            // the nearest one instead of camping the spot for local
+            // respawns. Travel gets us within grind range, then the
+            // yield above hands off to combat.
+            if (Creature* mob = NearestQuestMob(sPlayerbotAIConfig.sightDistance))
+                return MoveWorldObjectTo(mob->GetGUID());
+
             return MoveRandomNear(20.0f);
         }
     }
