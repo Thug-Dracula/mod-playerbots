@@ -902,19 +902,35 @@ std::vector<WorldPosition> WorldPosition::getPathFromPath(std::vector<WorldPosit
     if (GetMapId() != currentPos.GetMapId())
         return {};
 
-    std::vector<WorldPosition> subPath, fullPath = startPath;
+    // The pathfinding chain: thread ONE PathGenerator through every step
+    // (no Clear() between steps — AC's BuildPolyPath prefix-recycling
+    // EXTENDS the corridor further around an obstacle each step; clearing
+    // re-plans from scratch toward the goal every step and keeps re-hitting
+    // the same barrier, so the bot walks to a ridge foot and stalls).
+    auto runChain = [&](PathGenerator& path) -> std::vector<WorldPosition>
+    {
+        std::vector<WorldPosition> subPath, chainPath = startPath;
+        WorldPosition cur = startPath.back();
+        for (uint32 i = 0; i < maxAttempt; i++)
+        {
+            subPath = getPathStepFrom(cur, path);
+            if (subPath.empty() || cur.distance(&subPath.back()) < sPlayerbotAIConfig.targetPosRecalcDistance)
+                break;
+            chainPath.insert(chainPath.end(), std::next(subPath.begin(), 1), subPath.end());
+            if (isPathTo(subPath))
+                break;
+            cur = subPath.back();
+        }
+        return chainPath;
+    };
 
-    // Construct ONE PathGenerator and thread it through every step
-    // to avoid the per-step alloc cost. AC's BuildPolyPath has a
-    // subpath-prefix optimization that can bend chained probes, so
-    // call Clear() before each step to reset the poly cache.
     Unit* pathUnit = bot;
     Creature* tempCreature = nullptr;
     if (!pathUnit)
     {
         Map* map = sMapMgr->FindBaseMap(GetMapId());
         if (!map)
-            return fullPath;
+            return startPath;
 
         tempCreature = new Creature();
         if (!tempCreature->Create(map->GenerateLowGuid<HighGuid::Unit>(), map,
@@ -923,7 +939,7 @@ std::vector<WorldPosition> WorldPosition::getPathFromPath(std::vector<WorldPosit
                                    currentPos.GetPositionZ(), 0))
         {
             delete tempCreature;
-            return fullPath;
+            return startPath;
         }
         pathUnit = tempCreature;
         map->EnsureGridCreated(Acore::ComputeGridCoord(currentPos.GetPositionX(), currentPos.GetPositionY()));
@@ -931,38 +947,45 @@ std::vector<WorldPosition> WorldPosition::getPathFromPath(std::vector<WorldPosit
     }
 
     PathGenerator path(pathUnit);
-    // Same as getPathStepFrom: apply the bot nav filter so planned routes
-    // match what bots can actually walk, regardless of the path source
-    // (the core filter only hard-excludes steep for a bot source, not a
-    // temp creature). Area costs mirror the reference.
+    // Apply the bot nav filter so planned routes match what a bot can walk,
+    // regardless of the path source (the core filter only hard-excludes
+    // steep for a bot source, not a temp creature). Area costs mirror the reference.
     path.SetExcludeFlags(NAV_MAGMA | NAV_SLIME | NAV_GROUND_STEEP);
     path.SetNavTerrainCost(NAV_WATER, 10.0f);
-
-    // Limit the pathfinding attempts
-    for (uint32 i = 0; i < maxAttempt; i++)
-    {
-        // NB: do NOT Clear() between steps. The reference reuses one
-        // pathfinder across the whole chain so BuildPolyPath's
-        // prefix-recycling EXTENDS the corridor further around an
-        // obstacle each step. Clearing re-plans from scratch toward the
-        // goal every step, which keeps re-hitting the same barrier (a
-        // steep ridge) and never rounds it — the bot walks to the foot
-        // and stalls instead of pathing around.
-        subPath = getPathStepFrom(currentPos, path);
-
-        if (subPath.empty() || currentPos.distance(&subPath.back()) < sPlayerbotAIConfig.targetPosRecalcDistance)
-            break;
-
-        fullPath.insert(fullPath.end(), std::next(subPath.begin(), 1), subPath.end());
-
-        if (isPathTo(subPath))
-            break;
-
-        currentPos = subPath.back();
-    }
+    std::vector<WorldPosition> fullPath = runChain(path);
 
     if (tempCreature)
         delete tempCreature;
+
+    // Soft-steep fallback: a real bot's filter hard-excludes 50-60deg
+    // slopes and cannot re-include them, so a route that runs only along
+    // such a slope (a mountain edge to a ledge NPC) yields no path and the
+    // bot wedges. A temp creature's filter DOES include steep — retry the
+    // chain through one, costing steep high, so the bot follows the edge as
+    // a last resort. Fires only when the bot chain made NO progress, so the
+    // extra creature is created rarely (flat routes never reach here). The
+    // >60deg cliff has no navmesh, so the top stays uncrossable.
+    if (fullPath.size() <= startPath.size() && bot && bot->IsPlayer() &&
+        sPlayerbotAIConfig.botSteepTravelCost > 0.0f)
+    {
+        if (Map* map = sMapMgr->FindBaseMap(GetMapId()))
+        {
+            Creature* softCreature = new Creature();
+            if (softCreature->Create(map->GenerateLowGuid<HighGuid::Unit>(), map, PHASEMASK_NORMAL, 1 /*entry*/, 0,
+                                     currentPos.GetPositionX(), currentPos.GetPositionY(), currentPos.GetPositionZ(), 0))
+            {
+                map->EnsureGridCreated(Acore::ComputeGridCoord(currentPos.GetPositionX(), currentPos.GetPositionY()));
+                map->EnsureGridCreated(Acore::ComputeGridCoord(GetPositionX(), GetPositionY()));
+                PathGenerator softPath(softCreature);
+                // Creature filter includes NAV_GROUND_STEEP — keep it, but cost it high.
+                softPath.SetExcludeFlags(NAV_MAGMA | NAV_SLIME);
+                softPath.SetNavTerrainCost(NAV_GROUND_STEEP, sPlayerbotAIConfig.botSteepTravelCost);
+                softPath.SetNavTerrainCost(NAV_WATER, 10.0f);
+                fullPath = runChain(softPath);
+            }
+            delete softCreature;
+        }
+    }
 
     return fullPath;
 }

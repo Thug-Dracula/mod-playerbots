@@ -105,6 +105,18 @@ bool PlayerbotAIConfig::Initialize()
     rpgDistance = sConfigMgr->GetOption<float>("AiPlayerbot.RpgDistance", 200.0f);
     grindDistance = sConfigMgr->GetOption<float>("AiPlayerbot.GrindDistance", 75.0f);
     reactDistance = sConfigMgr->GetOption<float>("AiPlayerbot.ReactDistance", 150.0f);
+    // Steep-slope travel policy. The core bot nav filter hard-excludes
+    // 50-60deg NAV_GROUND_STEEP and cannot re-include it (no
+    // SetIncludeFlags), so a bot wedges when the ONLY route to a target
+    // runs along such a slope (a mountain edge leading to a ledge NPC).
+    // When a bot's travel path finds NO route, it retries through a temp
+    // creature (whose filter DOES include steep) at this Detour area
+    // cost, so the bot follows the steep edge as a last resort. A high
+    // value keeps bots off steep whenever any flatter route exists; the
+    // >60deg cliff has no navmesh so the top stays uncrossable. Set 0 to
+    // restore strict hard-exclude (bots never touch steep, but wedge at
+    // such targets). Travel pathing only; combat is unchanged.
+    botSteepTravelCost = sConfigMgr->GetOption<float>("AiPlayerbot.BotSteepTravelCost", 20.0f);
 
     criticalHealth = sConfigMgr->GetOption<int32>("AiPlayerbot.CriticalHealth", 25);
     lowHealth = sConfigMgr->GetOption<int32>("AiPlayerbot.LowHealth", 45);
