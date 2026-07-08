@@ -3688,6 +3688,34 @@ TravelPath MovementAction::ResolveMovePath(const WorldPosition& startPosition, c
     {
         std::vector<WorldPosition> path = startPos.getPathTo(endPos, bot);  // Navmesh pathfinding only.
         outMovePath.addPath(path);
+
+        // Short trips had no resolution logging at all — failures under
+        // the node threshold were invisible in the debug stream.
+        if (!outMovePath.empty())
+        {
+            float const endGap = outMovePath.getBack().distance(endPos);
+            EmitDebugMove("Resolve", "direct", outMovePath.getBack().GetPositionX(),
+                          outMovePath.getBack().GetPositionY(), outMovePath.getBack().GetPositionZ(),
+                          endGap > 5.0f ? "short (did not arrive)" : nullptr);
+        }
+        else
+            EmitDebugMove("Resolve", "direct-none", endPos.GetPositionX(), endPos.GetPositionY(),
+                          endPos.GetPositionZ());
+    }
+
+    // A "path" that goes nowhere is no path. Pathfinding failure returns
+    // its seed point(s) — getPathFromPath yields the start on zero
+    // progress — and dispatching that produces an endless stream of
+    // zero-length splines: the bot hovers/jitters in place and no
+    // recovery ever fires because the path is technically non-empty.
+    // Treat no-progress results as EMPTY so MoveTo2's recovery path
+    // (unstick / no-path / caller fallbacks) runs instead.
+    if (!outMovePath.empty())
+    {
+        bool const noProgress = outMovePath.getPointPath().size() < 2 ||
+            (startPos.distance(outMovePath.getBack()) < 1.0f && totalDistance > 2.0f);
+        if (noProgress)
+            outMovePath.clear();
     }
 
     if (!lastMove.lastPath.empty() && !outMovePath.empty() &&
@@ -4063,7 +4091,12 @@ bool MovementAction::MoveTo2(const WorldPosition& endPos, bool idle, bool react,
                 bool const stepVisible =
                     bot->IsWithinLOS(correct.GetPositionX(), correct.GetPositionY(),
                                      correct.GetPositionZ() + bot->GetCollisionHeight());
-                if (stepDist > 0.5f && stepDist < 15.0f && stepVisible)
+                // >2y: a sub-2y nudge never unblocks anything — the bot
+                // just inches in place tick after tick (visible as
+                // hover-jitter) while the real blocker is elsewhere.
+                // Skipping lets the no-path failure surface so caller
+                // fallbacks (POI rotation, travel retry) take over.
+                if (stepDist > 2.0f && stepDist < 15.0f && stepVisible)
                 {
                     bot->GetMotionMaster()->Clear();
                     bot->GetMotionMaster()->MovePoint(

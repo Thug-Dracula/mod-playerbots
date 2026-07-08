@@ -74,6 +74,16 @@ protected:
     Creature* NearestQuestMob(float range = 20.0f);
 
 protected:
+    // Last object the approach failed to path to, skipped by the pickers
+    // for a short while so the bot tries an ALTERNATIVE (the next
+    // mushroom over) instead of re-committing the same unreachable one
+    // every tick forever.
+    ObjectGuid lastUnreachableGO{};
+    uint32 lastUnreachableGOMs{0};
+
+    void MarkUnreachable(ObjectGuid guid);
+    bool IsMarkedUnreachable(ObjectGuid guid) const;
+
     bool GetQuestPOIPosAndObjectiveIdx(uint32 questId, std::vector<POIInfo>& poiInfo, bool toComplete = false);
     float ResolveQuestPOIDestZ(Quest const* quest, int32 objectiveIdx, float dx, float dy, float surfaceZ);
     float ResolveQuestTurnInDestZ(uint32 questId, float dx, float dy, float surfaceZ);

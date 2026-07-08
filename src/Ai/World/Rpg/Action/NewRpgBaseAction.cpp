@@ -59,6 +59,17 @@ bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
     return MoveTo2(dest);
 }
 
+void NewRpgBaseAction::MarkUnreachable(ObjectGuid guid)
+{
+    lastUnreachableGO = guid;
+    lastUnreachableGOMs = getMSTime();
+}
+
+bool NewRpgBaseAction::IsMarkedUnreachable(ObjectGuid guid) const
+{
+    return guid == lastUnreachableGO && GetMSTimeDiffToNow(lastUnreachableGOMs) < 60 * 1000;
+}
+
 bool NewRpgBaseAction::MoveWorldObjectTo(ObjectGuid guid, float distance)
 {
     WorldObject* object = botAI->GetWorldObject(guid);
@@ -735,7 +746,16 @@ bool NewRpgBaseAction::TryLootQuestGO(ObjectGuid& pursuedGO, float searchRange)
             bot->GetDistance(existing) <= searchRange)
         {
             if (bot->GetDistance(existing) > lootRange)
-                return MoveWorldObjectTo(existing->GetGUID(), lootRange);
+            {
+                if (MoveWorldObjectTo(existing->GetGUID(), lootRange))
+                    return true;
+                // Unreachable: un-commit and remember, so the picker
+                // below tries a DIFFERENT spawn next tick instead of
+                // re-committing this one forever.
+                MarkUnreachable(pursuedGO);
+                pursuedGO.Clear();
+                return false;
+            }
             // in range — loot strategy opens it
             return true;
         }
@@ -750,6 +770,8 @@ bool NewRpgBaseAction::TryLootQuestGO(ObjectGuid& pursuedGO, float searchRange)
     float bestDist = searchRange;
     for (ObjectGuid guid : possibleGameObjects)
     {
+        if (IsMarkedUnreachable(guid))
+            continue;
         GameObject* go = botAI->GetGameObject(guid);
         if (!isValidTarget(go))
             continue;
@@ -766,7 +788,13 @@ bool NewRpgBaseAction::TryLootQuestGO(ObjectGuid& pursuedGO, float searchRange)
     pursuedGO = best->GetGUID();
 
     if (bot->GetDistance(best) > lootRange)
-        return MoveWorldObjectTo(best->GetGUID(), lootRange);
+    {
+        if (MoveWorldObjectTo(best->GetGUID(), lootRange))
+            return true;
+        MarkUnreachable(pursuedGO);
+        pursuedGO.Clear();
+        return false;
+    }
 
     // in range — consume the tick so we don't fall through to wander
     return true;
