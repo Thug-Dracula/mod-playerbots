@@ -445,6 +445,10 @@ bool NewRpgDoQuestAction::DoIncompleteQuest(NewRpgInfo::DoQuest& data)
     if (TryUseQuestGO(data.pursuedUseGO))
         return true;
 
+    // How long a POI may stay dry (no quest mob/GO in sight) before the
+    // scout below rotates to a different cluster.
+    constexpr uint32 scoutTimeoutMs = 30 * 1000;
+
     // gather quests: roam for spawns. kill quests: yield to grind.
     Quest const* quest = sObjectMgr->GetQuestTemplate(questId);
     if (quest)
@@ -486,14 +490,20 @@ bool NewRpgDoQuestAction::DoIncompleteQuest(NewRpgInfo::DoQuest& data)
             if (Creature* mob = NearestQuestMob(sPlayerbotAIConfig.sightDistance))
                 return MoveWorldObjectTo(mob->GetGUID());
 
-            return MoveRandomNear(20.0f);
+            // Nothing to kill or gather in sight: roam briefly, but once
+            // this cluster has been dry for the scout window, fall
+            // THROUGH to the POI-rotation scout below and move to
+            // another cluster (other Grellkin camps) instead of camping
+            // respawns here forever.
+            if (!data.lastReachPOI || GetMSTimeDiffToNow(data.lastReachPOI) < scoutTimeoutMs)
+                return MoveRandomNear(20.0f);
         }
     }
 
-    // Kill-quest scout: at POI for 30s+ with no quest mob in sight
-    // means this cluster is empty. Switch to a different POI candidate
-    // (>50y away) if one exists; otherwise roam in place.
-    constexpr uint32 scoutTimeoutMs = 30 * 1000;
+    // POI scout (kill AND dried-up gather): at POI for 30s+ with no
+    // quest mob in sight means this cluster is empty. Switch to a
+    // different POI candidate (>50y away) if one exists; otherwise roam
+    // in place.
     if (data.lastReachPOI && GetMSTimeDiffToNow(data.lastReachPOI) >= scoutTimeoutMs &&
         !HasNearbyQuestMob(30.0f))
     {

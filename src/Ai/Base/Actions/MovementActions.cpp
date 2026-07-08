@@ -3631,6 +3631,11 @@ TravelPath MovementAction::ResolveMovePath(const WorldPosition& startPosition, c
     // Last long path still leads to roughly the same destination — reuse it.
     if (!lastMove.lastPath.empty() && lastMove.lastPath.getBack().distance(endPos) < maxDistChange)
     {
+        // Make reuse visible: without this line the debug log shows only
+        // MoveFar+Dispatch pairs and a stale path being re-ridden is
+        // indistinguishable from a fresh resolution.
+        EmitDebugMove("Resolve", "reuse", lastMove.lastPath.getBack().GetPositionX(),
+                      lastMove.lastPath.getBack().GetPositionY(), lastMove.lastPath.getBack().GetPositionZ());
         return lastMove.lastPath;
     }
 
@@ -4072,6 +4077,9 @@ bool MovementAction::MoveTo2(const WorldPosition& endPos, bool idle, bool react,
                 }
             }
         }
+        // Make failure visible: the MoveFar line already printed intent,
+        // so a silent false here reads as if the move went out.
+        EmitDebugMove("MoveTo2", "no-path", endPos.GetPositionX(), endPos.GetPositionY(), endPos.GetPositionZ());
         return false;
     }
 
