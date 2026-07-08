@@ -227,7 +227,13 @@ void MovementAction::EmitDebugMove(char const* method, char const* generator, fl
 
     float dis = bot->GetExactDist(x, y, z);
     std::ostringstream out;
-    out << "[M] | " << method
+    // getName() = the ACTION executing this move (attack anything, reach
+    // melee, new rpg do quest, ...). The status/target further right is
+    // only the RPG-layer GOAL — without the action name, a combat move
+    // during a Fel Moss quest reads as "moving to Fel Moss" when the bot
+    // is actually fighting something else entirely.
+    out << "[M] | " << getName()
+        << " | " << method
         << " | " << (generator && *generator ? generator : "-")
         << " | " << statusName
         << " | step " << std::fixed << std::setprecision(1) << dis << "y"
