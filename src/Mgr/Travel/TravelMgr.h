@@ -291,7 +291,14 @@ public:
     // Pathfinding
     std::vector<WorldPosition> getPathStepFrom(WorldPosition startPos, Unit* bot);
     std::vector<WorldPosition> getPathStepFrom(WorldPosition startPos, PathGenerator& pathfinder);
-    std::vector<WorldPosition> getPathFromPath(std::vector<WorldPosition> startPath, Unit* bot, uint8 maxAttempt = 40);
+    // allowSteepFallback: permit the soft-steep last-resort retry when the
+    // flat chain makes no progress. Callers probing WHETHER a flat route
+    // exists (getFullPath's probe-first shortcut) must pass false — a
+    // steep-assisted probe "reaches" destinations the bot should instead
+    // route to via the node graph, hijacking node routing and walking
+    // bots over ridges.
+    std::vector<WorldPosition> getPathFromPath(std::vector<WorldPosition> startPath, Unit* bot, uint8 maxAttempt = 40,
+                                               bool allowSteepFallback = true);
 
     std::vector<WorldPosition> getPathFrom(WorldPosition startPos, Unit* bot)
     {

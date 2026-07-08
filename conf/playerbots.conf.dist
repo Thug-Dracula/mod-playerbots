@@ -423,11 +423,12 @@ AiPlayerbot.ReactDistance = 150.0
 #        Detour traversal cost for 50-60deg NAV_GROUND_STEEP slopes when a bot's
 #        travel path can find NO flatter route (e.g. a mountain edge leading to a
 #        ledge NPC). The bot then follows the steep edge as a last resort instead
-#        of wedging. High = strongly prefer flat, climb only when unavoidable.
+#        of wedging. At 100, one steep yard costs as much as 100 flat yards, so
+#        any existing way around always beats crossing a ridge.
 #        0 = strict hard-exclude (bots never touch steep, but stall at such targets).
 #        The >60deg cliff has no navmesh, so the top is never crossable either way.
-#        Default: 20.0
-AiPlayerbot.BotSteepTravelCost = 20.0
+#        Default: 100.0
+AiPlayerbot.BotSteepTravelCost = 100.0
 
 #
 #

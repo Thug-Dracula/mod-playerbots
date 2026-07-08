@@ -4048,7 +4048,15 @@ bool MovementAction::MoveTo2(const WorldPosition& endPos, bool idle, bool react,
             if (correct.ClosestCorrectPoint(10.0f, 10.0f))
             {
                 float const stepDist = startPos.distance(correct);
-                if (stepDist > 0.5f && stepDist < 15.0f)
+                // LOS guard: ClosestCorrectPoint searches in every
+                // direction and can snap to a walkable poly on the OTHER
+                // side of a wall (treehouse interiors) — the raw step then
+                // glitches the bot straight through. Only step to a point
+                // we can actually see.
+                bool const stepVisible =
+                    bot->IsWithinLOS(correct.GetPositionX(), correct.GetPositionY(),
+                                     correct.GetPositionZ() + bot->GetCollisionHeight());
+                if (stepDist > 0.5f && stepDist < 15.0f && stepVisible)
                 {
                     bot->GetMotionMaster()->Clear();
                     bot->GetMotionMaster()->MovePoint(

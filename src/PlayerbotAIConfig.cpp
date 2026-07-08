@@ -122,7 +122,12 @@ bool PlayerbotAIConfig::Initialize()
     // >60deg cliff has no navmesh so the top stays uncrossable. Set 0 to
     // restore strict hard-exclude (bots never touch steep, but wedge at
     // such targets). Travel pathing only; combat is unchanged.
-    botSteepTravelCost = sConfigMgr->GetOption<float>("AiPlayerbot.BotSteepTravelCost", 20.0f);
+    // 100: a steep yard costs as much as 100 flat yards, so any existing
+    // way around always beats crossing a ridge; steep is used only when
+    // NO flat route exists at all (a ledge NPC's approach). 20 proved too
+    // low — a short steep crossing could out-score a long flat detour and
+    // bots cut over mountains again.
+    botSteepTravelCost = sConfigMgr->GetOption<float>("AiPlayerbot.BotSteepTravelCost", 100.0f);
 
     criticalHealth = sConfigMgr->GetOption<int32>("AiPlayerbot.CriticalHealth", 25);
     lowHealth = sConfigMgr->GetOption<int32>("AiPlayerbot.LowHealth", 45);

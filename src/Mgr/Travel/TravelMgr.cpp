@@ -893,7 +893,7 @@ bool WorldPosition::cropPathTo(std::vector<WorldPosition>& path, float maxDistan
 // A sequential series of pathfinding attempts. Returns the complete path and if the patfinder eventually found a way to
 // the destination.
 std::vector<WorldPosition> WorldPosition::getPathFromPath(std::vector<WorldPosition> startPath, Unit* bot,
-                                                          uint8 maxAttempt)
+                                                          uint8 maxAttempt, bool allowSteepFallback)
 {
     // We start at the end of the last path.
     WorldPosition currentPos = startPath.back();
@@ -965,7 +965,7 @@ std::vector<WorldPosition> WorldPosition::getPathFromPath(std::vector<WorldPosit
     // a last resort. Fires only when the bot chain made NO progress, so the
     // extra creature is created rarely (flat routes never reach here). The
     // >60deg cliff has no navmesh, so the top stays uncrossable.
-    if (fullPath.size() <= startPath.size() && bot && bot->IsPlayer() &&
+    if (allowSteepFallback && fullPath.size() <= startPath.size() && bot && bot->IsPlayer() &&
         sPlayerbotAIConfig.botSteepTravelCost > 0.0f)
     {
         if (Map* map = sMapMgr->FindBaseMap(GetMapId()))

@@ -94,6 +94,15 @@ bool NewRpgBaseAction::MoveWorldObjectTo(ObjectGuid guid, float distance)
     // while staying clear of the object's own footprint.
     float const ringDist = std::max(distance - 2.0f, 2.5f);
 
+    // The LOS filter below is a FINAL-APPROACH refinement (don't pick a
+    // point behind a wall/pillar when standing next to the NPC). From
+    // across the zone it is fatal: no point on a ring around an indoor
+    // NPC (Aldrassil trainers) is visible from 200y out, so every angle
+    // fails, no destination is ever produced, MoveFarTo never runs — and
+    // with it the whole travel pipeline including node routing. Far away,
+    // reachability is the pathfinder's job, not a raycast's.
+    bool const applyLosFilter = bot->GetDistance(object) < 40.0f;
+
     for (int pass = 0; pass < 2; ++pass)
     {
         uint16 const includeFlags = (pass == 0) ? NAV_GROUND : (NAV_GROUND | NAV_GROUND_STEEP);
@@ -109,8 +118,8 @@ bool NewRpgBaseAction::MoveWorldObjectTo(ObjectGuid guid, float distance)
             float y = object->GetPositionY() + std::sin(angle) * ringDist;
             float z = object->GetPositionZ();
 
-            // LOS check at eye height.
-            if (!bot->IsWithinLOS(x, y, z + bot->GetCollisionHeight()))
+            // LOS check at eye height (near-range final approach only).
+            if (applyLosFilter && !bot->IsWithinLOS(x, y, z + bot->GetCollisionHeight()))
                 continue;
 
             // Navmesh-snap validation (cmangos ClosestCorrectPoint port).

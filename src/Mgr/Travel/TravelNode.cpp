@@ -1975,6 +1975,64 @@ TravelNodeRoute TravelNodeMap::getRoute(WorldPosition startPos, WorldPosition en
         }
     }
 
+    // Trust-the-nodes fallback: no end node has a validated mmap tail to
+    // the destination (unreachable pocket, mesh oddity). Instead of
+    // abandoning the graph — leaving the caller to follow a raw probe
+    // into terrain — ride the graph to the node NEAREST the destination
+    // and re-resolve from there: the per-tick resolver retries mmap from
+    // much closer, where the final approach (steep-assisted legs,
+    // unstick) can finish the job. Only the begin leg must validate; the
+    // route ends AT the node (empty tail). Skipped once the bot is
+    // already at that node — riding gains nothing then, and the caller's
+    // probe/final-approach machinery takes over.
+    if (startPos.GetMapId() == endPos.GetMapId() &&
+        startPos.distance(*endNodes.front()->getPosition()) > 20.0f)
+    {
+        for (TravelNode* endNode : endNodes)  // distance-sorted: nearest to dest first
+        {
+            for (TravelNode* startNode : startNodes)
+            {
+                if (std::find(badStartNodes.begin(), badStartNodes.end(), startNode) != badStartNodes.end())
+                    continue;
+
+                WorldPosition startNodePosition = *startNode->getPosition();
+                float const maxStartDistance = startNode->isTransport() ? 20.0f : 1.0f;
+
+                TravelNodeRoute route;
+                if (startNode == endNode)
+                {
+                    route = TravelNodeRoute({startNode});
+                }
+                else
+                {
+                    if (!startNode->hasRouteTo(endNode))
+                        continue;
+                    route = GetNodeRoute(startNode, endNode, botPlayer);
+                    if (route.isEmpty())
+                        continue;
+                }
+
+                std::vector<WorldPosition> newStartPath = startPath;
+                bool hasPath = startNodePosition.cropPathTo(newStartPath, maxStartDistance);
+                if (!hasPath)
+                {
+                    newStartPath = startPos.getPathTo(startNodePosition, unit);
+                    hasPath = startNodePosition.isPathTo(newStartPath, maxStartDistance);
+                }
+                if (!hasPath)
+                {
+                    badStartNodes.push_back(startNode);
+                    continue;
+                }
+
+                startPath = newStartPath;
+                endPath.clear();  // walker stops at the node; re-resolution continues from there
+                s_lastRouteFailReason = "node-approach (no mmap tail to dest)";
+                return route;
+            }
+        }
+    }
+
     s_lastRouteFailReason = "noReach:" + std::to_string(pairsNoReach) +
                             " noAstar:" + std::to_string(pairsNoAstar) +
                             " tailFail:" + std::to_string(tailFails) +
@@ -1998,7 +2056,10 @@ bool TravelNodeMap::GetFullPath(TravelPlan& plan,
     std::vector<WorldPosition> beginPath;
     if (botPos.GetMapId() == destination.GetMapId())
     {
-        beginPath = destination.getPathFromPath({botPos}, bot, 40);
+        // Flat-only probe: with the steep fallback a probe can "reach"
+        // over a ridge, short-circuiting the node graph — nodes exist to
+        // route around exactly those spots.
+        beginPath = destination.getPathFromPath({botPos}, bot, 40, /*allowSteepFallback=*/false);
         if (beginPath.size() >= 2 && destination.isPathTo(beginPath, sPlayerbotAIConfig.spellDistance))
         {
             plan.steps.addPoint(botPos, PathNodeType::NODE_PREPATH);
@@ -2035,7 +2096,11 @@ TravelPath TravelNodeMap::getFullPath(WorldPosition startPos, WorldPosition endP
     TravelPath movePath;
     std::vector<WorldPosition> beginPath, endPath;
 
-    beginPath = endPos.getPathFromPath({startPos}, unit, 40);
+    // Flat-only probe: with the steep fallback a probe can "reach" over a
+    // ridge, short-circuiting the node graph — nodes exist to route around
+    // exactly those spots. Steep assistance stays available to getRoute's
+    // begin/tail legs and short final approaches via getPathTo.
+    beginPath = endPos.getPathFromPath({startPos}, unit, 40, /*allowSteepFallback=*/false);
 
     bool reachedByNavmesh = endPos.isPathTo(beginPath, sPlayerbotAIConfig.spellDistance);
 
