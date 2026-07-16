@@ -662,7 +662,7 @@ void RandomPlayerbotFactory::CreateRandomBots()
         sPlayerbotAIConfig.randomBotAccounts.push_back(accountId);
 
         uint32 count = AccountMgr::GetCharactersCount(accountId);
-        if (count >= 10)
+        if (count >= 1)
         {
             continue;
         }

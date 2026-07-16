@@ -388,22 +388,9 @@ class PlayerbotsScript : public PlayerbotScript
 public:
     PlayerbotsScript() : PlayerbotScript("PlayerbotsScript") {}
 
-    bool OnPlayerbotCheckLFGQueue(lfg::Lfg5Guids const& guidsList) override
+    bool OnPlayerbotCheckLFGQueue(lfg::Lfg5Guids const& /*guidsList*/) override
     {
-        bool nonBotFound = false;
-
-        for (ObjectGuid const& guid : guidsList.guids)
-        {
-            Player* player = ObjectAccessor::FindPlayer(guid);
-
-            if (guid.IsGroup() || (player && !PlayerbotsMgr::instance().GetPlayerbotAI(player)))
-            {
-                nonBotFound = true;
-                break;
-            }
-        }
-
-        return nonBotFound;
+        return true;
     }
 
     void OnPlayerbotCheckKillTask(Player* player, Unit* victim) override

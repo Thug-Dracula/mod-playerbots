@@ -90,6 +90,10 @@ bool LfgJoinAction::JoinLFG()
     if (state != LFG_STATE_NONE)
         return false;
 
+    // mod-bot-dungeon-queue: skip bots with a pending dungeon teleport
+    if (sRandomPlayerbotMgr.GetValue(bot->GetGUID().GetCounter(), "pending_dungeon"))
+        return false;
+
     /*ItemCountByQuality visitor;
     IterateItems(&visitor, ITERATE_ITEMS_IN_EQUIP);
     bool random = urand(0, 100) < 20;

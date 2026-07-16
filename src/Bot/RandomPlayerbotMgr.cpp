@@ -25,7 +25,10 @@
 #include "Define.h"
 #include "FleeManager.h"
 #include "GridNotifiers.h"
+#include "Group.h"
+#include "InstanceSaveMgr.h"
 #include "LFGMgr.h"
+
 #include "MapMgr.h"
 #include "NewRpgInfo.h"
 #include "NewRpgStrategy.h"
@@ -1260,6 +1263,29 @@ void RandomPlayerbotMgr::CheckLfgQueue()
     LfgDungeons[TEAM_ALLIANCE].clear();
     LfgDungeons[TEAM_HORDE].clear();
 
+    // Seed LFG dungeon list from all available LFG dungeons for the server level range
+    // This fixes the chicken-and-egg problem where bots can't queue because
+    // LfgDungeons was only populated from already-queued bots.
+    for (uint32 i = 0; i < sLFGDungeonStore.GetNumRows(); ++i)
+    {
+        LFGDungeonEntry const* dungeon = sLFGDungeonStore.LookupEntry(i);
+        if (!dungeon)
+            continue;
+
+        if (dungeon->TypeID != lfg::LFG_TYPE_RANDOM && dungeon->TypeID != lfg::LFG_TYPE_DUNGEON &&
+            dungeon->TypeID != lfg::LFG_TYPE_HEROIC && dungeon->TypeID != lfg::LFG_TYPE_RAID)
+            continue;
+
+        if (dungeon->MaxLevel > 0 && dungeon->MaxLevel < 15)
+            continue;
+
+        if (dungeon->ExpansionLevel >= 2)
+            continue;
+
+        LfgDungeons[TEAM_ALLIANCE].push_back(dungeon->ID);
+        LfgDungeons[TEAM_HORDE].push_back(dungeon->ID);
+    }
+
     for (std::vector<Player*>::iterator i = players.begin(); i != players.end(); ++i)
     {
         Player* player = *i;
@@ -1275,17 +1301,18 @@ void RandomPlayerbotMgr::CheckLfgQueue()
             lfg::LfgDungeonSet const& dList = sLFGMgr->GetSelectedDungeons(player->GetGUID());
             for (lfg::LfgDungeonSet::const_iterator itr = dList.begin(); itr != dList.end(); ++itr)
             {
-                lfg::LFGDungeonData const* dungeon = sLFGMgr->GetLFGDungeon(*itr);
-                if (!dungeon)
+                lfg::LFGDungeonData const* d = sLFGMgr->GetLFGDungeon(*itr);
+                if (!d)
                     continue;
 
-                LfgDungeons[player->GetTeamId()].push_back(dungeon->id);
+                LfgDungeons[player->GetTeamId()].push_back(d->id);
             }
         }
     }
 
     LOG_DEBUG("playerbots", "LFG Queue check finished");
 }
+
 
 void RandomPlayerbotMgr::CheckPlayers()
 {
@@ -1450,6 +1477,17 @@ bool RandomPlayerbotMgr::ProcessBot(Player* bot)
     if (!botAI)
         return false;
 
+    // Skip bots in dungeon instances or actively queued for LFG
+    if (bot->GetMap() && bot->GetMap()->IsDungeon())
+        return false;
+
+    // Skip bots with a pending dungeon teleport
+    if (GetEventValue(bot->GetGUID().GetCounter(), "pending_dungeon"))
+        return false;
+
+    if (sLFGMgr->GetState(bot->GetGUID()) != lfg::LFG_STATE_NONE)
+        return false;
+
     if (bot->InBattleground())
         return false;
 
@@ -1481,12 +1519,15 @@ bool RandomPlayerbotMgr::ProcessBot(Player* bot)
         return false;
     }
 
-    // leave group if leader is rndbot
+    // leave group if leader is rndbot (but NOT if we're queued for LFG or already in a dungeon)
     Group* group = bot->GetGroup();
-    if (group && !group->isLFGGroup() && IsRandomBot(group->GetLeader()))
+    bool isDungeon = bot->GetMap() && bot->GetMap()->IsDungeon();
+    if (group && !group->isLFGGroup() && IsRandomBot(group->GetLeader()) && !isDungeon &&
+        !bot->InBattlegroundQueue() && sLFGMgr->GetState(bot->GetGUID()) == lfg::LFG_STATE_NONE)
     {
         botAI->LeaveOrDisbandGroup();
-        LOG_INFO("playerbots", "Bot {} remove from group since leader is random bot.", bot->GetName().c_str());
+        LOG_INFO("playerbots", "Bot {} remove from group since leader is random bot (map={}, isDungeon={}).",
+                 bot->GetName().c_str(), bot->GetMapId(), isDungeon ? 1 : 0);
     }
 
     // only randomize and teleport idle bots

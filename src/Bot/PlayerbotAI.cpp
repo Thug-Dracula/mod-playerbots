@@ -783,6 +783,7 @@ void PlayerbotAI::HandleTeleportAck()
      */
     if (bot->IsBeingTeleportedFar())
     {
+        bool beforeBear = HasStrategy("bear", BOT_STATE_COMBAT) || HasStrategy("tank", BOT_STATE_COMBAT);
         bot->GetSession()->HandleMoveWorldportAck();
 
         // after worldport ACK the player should be in a valid map
@@ -796,15 +797,17 @@ void PlayerbotAI::HandleTeleportAck()
         if (sPlayerbotAIConfig.applyInstanceStrategies)
             ApplyInstanceStrategies(bot->GetMapId(), true);
 
+        bool afterApply = HasStrategy("bear", BOT_STATE_COMBAT) || HasStrategy("tank", BOT_STATE_COMBAT);
+
         if (sPlayerbotAIConfig.restrictHealerDPS)
             EvaluateHealerDpsStrategy();
 
         // reset AI state after teleport
         Reset(true);
 
-        bool hasBearAfter = HasStrategy("bear", BOT_STATE_COMBAT) || HasStrategy("tank", BOT_STATE_COMBAT);
-        LOG_INFO("playerbots", "teleport ack {}: after reset bear={} isTank={}",
-                 bot->GetName(), hasBearAfter, ContainsStrategy(STRATEGY_TYPE_TANK));
+        bool afterReset = HasStrategy("bear", BOT_STATE_COMBAT) || HasStrategy("tank", BOT_STATE_COMBAT);
+        LOG_INFO("playerbots", "teleport ack {}: before={} afterApply={} afterReset={}",
+                 bot->GetName(), beforeBear, afterApply, afterReset);
 
         // clear movement only AFTER teleport is finalized and bot is in world
         if (bot->IsInWorld() && bot->GetMotionMaster())

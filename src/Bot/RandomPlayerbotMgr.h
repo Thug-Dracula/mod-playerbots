@@ -152,6 +152,7 @@ public:
     std::map<TeamId, std::vector<uint32>> LfgDungeons;
     void CheckBgQueue();
     void CheckLfgQueue();
+
     void CheckPlayers();
     void LogBattlegroundInfo();
 
