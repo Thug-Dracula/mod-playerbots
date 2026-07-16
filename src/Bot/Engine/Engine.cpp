@@ -360,6 +360,7 @@ void Engine::addStrategy(std::string const name, bool init)
 
         LogAction("S:+%s", strategy->getName().c_str());
         strategies[strategy->getName()] = strategy;
+        strategyTypeMask |= strategy->GetType();
     }
     if (init)
         Init();
