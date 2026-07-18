@@ -8,10 +8,18 @@
 
 #include "Event.h"
 #include "Playerbots.h"
+#include "Bot/RandomPlayerbotMgr.h"
 
 bool AcceptResurrectAction::Execute(Event event)
 {
     if (bot->IsAlive())
+        return false;
+
+    // If the mod-bot-dungeon-queue has a step 2 ghost teleport pending,
+    // refuse resurrection — the teleport will bring the ghost to the
+    // dungeon entrance for a proper corpse-run instead of a spirit-healer
+    // rez outside the instance.
+    if (sRandomPlayerbotMgr.GetValue(bot->GetGUID().GetCounter(), "pending_teleport") > 0)
         return false;
 
     WorldPacket p(event.getPacket());

@@ -1811,6 +1811,9 @@ void RandomPlayerbotMgr::RandomTeleportForLevel(Player* bot)
     if (bot->InBattleground())
         return;
 
+    if (bot->GetMap() && bot->GetMap()->IsDungeon())
+        return;
+
     if (bot->GetLevel() >= 10 && urand(0, 100) < sPlayerbotAIConfig.probTeleToBankers * 100)
     {
         std::vector<WorldLocation> locs = sTravelMgr.GetCityLocations(bot);
@@ -1831,6 +1834,9 @@ void RandomPlayerbotMgr::RandomTeleportForLevel(Player* bot)
 void RandomPlayerbotMgr::RandomTeleportGrindForLevel(Player* bot)
 {
     if (bot->InBattleground())
+        return;
+
+    if (bot->GetMap() && bot->GetMap()->IsDungeon())
         return;
 
     std::vector<WorldLocation> locs = sTravelMgr.GetTeleportLocations(bot);
