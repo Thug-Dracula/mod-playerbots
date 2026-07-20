@@ -6625,6 +6625,9 @@ uint32 PlayerbotAI::GetReactDelay()
         if (HasRealPlayerMaster())
             return base;
 
+        if (bot->GetMap() && bot->GetMap()->IsDungeon())
+            return base;
+
         bool inBG = bot->InBattleground() || bot->InArena();
 
         if (sPlayerbotAIConfig.fastReactInBG && inBG)
@@ -6659,6 +6662,12 @@ uint32 PlayerbotAI::GetReactDelay()
             return static_cast<uint32>(base * (sPlayerbotAIConfig.fastReactInBG ? 1.0f : 10.0f));
         }
     }
+
+    // In a dungeon — treat like a mastered bot: full tick rate. Dungeon-clear
+    // coordination is sensitive to latency; a 500ms combat tick (5x penalty for
+    // masterless) makes the tank sluggish on target switches, peel, and pulls.
+    if (bot->GetMap() && bot->GetMap()->IsDungeon())
+        return base;
 
     // When in combat, return 5 times the base
     if (bot->IsInCombat() || currentState == BOT_STATE_COMBAT)

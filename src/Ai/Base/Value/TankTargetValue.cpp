@@ -98,6 +98,12 @@ public:
     }
     int32_t GetIntervalLevel(Unit* unit)
     {
+        // Highest priority: mob attacking a non-tank party member (peel)
+        if (Unit* victim = unit->GetVictim())
+            if (Player* p = victim->ToPlayer())
+                if (!botAI->IsTank(p))
+                    return 3;
+
         if (!botAI->HasAggro(unit))
             return 2;
 

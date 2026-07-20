@@ -31,7 +31,7 @@ float ThreatMultiplier::GetValue(Action* action)
     }
 
     uint8 threat = AI_VALUE2(uint8, "threat", "current target");
-    if (threat >= 80)
+    if (threat >= 100)
         return 0.0f;
 
     return 1.0f;

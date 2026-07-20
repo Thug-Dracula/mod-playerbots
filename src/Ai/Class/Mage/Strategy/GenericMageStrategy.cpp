@@ -119,7 +119,7 @@ void GenericMageStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
     else if (bot->HasSpell(SPELL_CONJURE_MANA_AGATE))
         triggers.push_back(new TriggerNode("high mana", { NextAction("use mana agate", 90.0f) }));
 
-    triggers.push_back(new TriggerNode("low mana", { NextAction("evocation", 90.0f) }));
+    triggers.push_back(new TriggerNode("low mana", { NextAction("evocation", 90.0f), NextAction("shoot", 30.0f) }));
 
     // Counterspell / Spellsteal Triggers
     triggers.push_back(new TriggerNode("spellsteal", { NextAction("spellsteal", 40.0f) }));

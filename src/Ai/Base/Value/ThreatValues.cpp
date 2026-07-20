@@ -71,9 +71,14 @@ uint8 ThreatValue::Calculate(Unit* target)
     bool fleeing = target->GetMotionMaster()->GetCurrentMovementGeneratorType() == FLEEING_MOTION_TYPE ||
                    target->GetMotionMaster()->GetCurrentMovementGeneratorType() == TIMED_FLEEING_MOTION_TYPE;
 
-    // return high threat if tank has no threat
-    if (target->IsInCombat() && maxThreat <= 0 && botThreat <= 0 && hasTank && !fleeing)
-        return 100;
+    // If the tank has no threat on this target (e.g. a freshly-pulled mob in a
+    // multi-mob pack that the tank hasn't touched yet), allow DPS to attack.
+    // Previously returned 100 (hard block) which suppressed ALL DPS on any mob
+    // the tank hadn't personally hit — the main cause of DPS standing idle
+    // during multi-mob pulls.  If the bot has already pulled ahead of the tank
+    // (botThreat > 0, maxThreat <= 0) return 101 to stop it.
+    if (target->IsInCombat() && maxThreat <= 0 && hasTank && !fleeing)
+        return botThreat > 0 ? 101 : 0;
 
     // return low threat if mob if fleeing
     if (hasTank && fleeing)
